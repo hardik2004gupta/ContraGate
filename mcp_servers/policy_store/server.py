@@ -24,6 +24,7 @@ import psycopg2
 import psycopg2.extras
 
 from mcp_servers.base.server_base import ContraGateMCPServer
+from mcp_servers.policy_store.rule_engine import evaluate_operation
 
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
@@ -169,75 +170,17 @@ def evaluate_rules(
             )
             pii_tables = {r["table_name"] for r in cur.fetchall()}
 
-        triggered = []
-        has_hard_violation = False
-        has_soft_violation = False
-        required_tier = None
-        auto_reject_reason = None
-
-        tables_set = set(tables)
-        pii_involved = bool(tables_set & pii_tables)
-        sensitive_tables = {"users", "orders", "invoices"}
-
-        for rule in all_rules:
-            cond = rule["condition"]
-            matched = False
-
-            rule_id = rule["rule_id"]
-            if rule_id == "POLICY_DDL_NO_BACKUP":
-                matched = operation_type in ("DROP", "TRUNCATE")
-
-            elif rule_id == "POLICY_PII_STANDARD_REVIEW":
-                matched = pii_involved
-
-            elif rule_id == "POLICY_EXTERNAL_INPUT":
-                matched = source_type == "external_user_input"
-
-            elif rule_id == "POLICY_BULK_DELETE_SENSITIVE":
-                matched = (
-                    operation_type in ("DELETE", "UPDATE")
-                    and bool(tables_set & sensitive_tables)
-                    and estimated_rows > 10000
-                )
-
-            elif rule_id == "POLICY_PAYMENT_WEBHOOK":
-                matched = has_external_triggers
-
-            elif rule_id == "POLICY_AFTER_HOURS":
-                business_start = cond.get("business_hours_start", 7)
-                business_end = cond.get("business_hours_end", 20)
-                matched = not (business_start <= submission_hour < business_end)
-
-            elif rule_id == "POLICY_PII_EXPENSIVE_READ":
-                matched = (
-                    operation_type == "SELECT"
-                    and pii_involved
-                    and explain_cost > 100000
-                )
-
-            if matched:
-                triggered.append({
-                    "rule_id": rule["rule_id"],
-                    "rule_name": rule["rule_name"],
-                    "severity": rule["severity"],
-                    "description": rule["description"],
-                    "action": rule["action"],
-                })
-                if rule["severity"] == "HARD":
-                    has_hard_violation = True
-                    auto_reject_reason = rule["description"]
-                else:
-                    has_soft_violation = True
-                if rule["action"] == "REQUIRE_FULL_CONTRACT":
-                    required_tier = "FULL_CONTRACT"
-
-        return {
-            "triggered_rules": triggered,
-            "has_hard_violation": has_hard_violation,
-            "has_soft_violation": has_soft_violation,
-            "required_tier": required_tier,
-            "auto_reject_reason": auto_reject_reason,
-        }
+        return evaluate_operation(
+            operation_type=operation_type,
+            tables=tables,
+            estimated_rows=estimated_rows,
+            source_type=source_type,
+            has_external_triggers=has_external_triggers,
+            submission_hour=submission_hour,
+            explain_cost=explain_cost,
+            pii_tables=pii_tables,
+            all_rules=all_rules,
+        )
     finally:
         conn.close()
 

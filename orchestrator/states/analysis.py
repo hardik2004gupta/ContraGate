@@ -1,13 +1,16 @@
 """
-ANALYSIS state — Phase 2 stub invoking Analyzer Agent.
+ANALYSIS state — delegates to the real Analyzer Agent (Phase 3).
 
-Phase 2 behavior: calls the postgres_reader MCP server for real schema
-data (FK graph, triggers, row estimates) and derives a structured blast_radius
-and reversibility classification using sql_analysis_lib functions.
+The AnalyzerAgent (agents/analyzer/agent.py) owns:
+  - SQL operation classification (deterministic)
+  - Blast radius analysis via postgres-reader MCP
+  - Reversibility classification (sql_analysis_lib — deterministic, no LLM)
+  - Intent summarization (Anthropic structured output — the only LLM call)
 
-Phase 2 does NOT invoke a real LLM agent. The analytical logic runs directly
-in this state using sql_analysis_lib — the actual Analyzer Agent wrapping
-this in structured LLM prompts is Phase 3.
+The private helper functions below (_parse_sql_intent, _classify_reversibility,
+etc.) are kept so that existing unit tests in tests/integration/test_analysis_state.py
+continue to import and verify them. They are no longer called by run_analysis()
+but remain tested as specification documentation.
 
 Writes to contract: intent_summary, operation_type, primary_table, condition,
 estimated_primary_rows, row_confidence, cascade, external_triggers,
@@ -18,9 +21,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime
 
-from orchestrator import mcp_client
 from orchestrator.handoff_schema import (
     CascadeEntry,
     ExternalTrigger,
@@ -28,150 +29,21 @@ from orchestrator.handoff_schema import (
     OperationType,
     ReversibilityClass,
 )
-from orchestrator.guards import needs_selective_reanalysis
 
 logger = logging.getLogger(__name__)
 
 
 async def run_analysis(contract: HandoffContract) -> HandoffContract:
     """
-    Run blast radius analysis and reversibility classification.
+    Run ANALYSIS state by delegating to the real Analyzer Agent.
 
-    In Phase 2: uses postgres_reader MCP server + sql_analysis_lib logic.
-    In Phase 3: will be replaced by Analyzer Agent LLM orchestration.
+    The AnalyzerAgent handles selective re-analysis internally — if all
+    analysis fields are fresh, it returns the contract unchanged.
     """
-    start = datetime.utcnow()
+    from agents.analyzer.agent import AnalyzerAgent
 
-    # Skip fields that are still fresh on selective re-analysis
-    if needs_selective_reanalysis(contract):
-        analysis_fields = {
-            "intent_summary", "primary_table", "estimated_primary_rows",
-            "cascade", "external_triggers", "reversibility",
-        }
-        fresh = set(contract.stale_fields) if contract.stale_fields else set()
-        # If none of the analysis fields are stale, skip entirely
-        if not (analysis_fields & set(contract.stale_fields)):
-            logger.info(
-                "ANALYSIS skipped — all fields fresh",
-                extra={"operation_id": contract.operation_id},
-            )
-            return contract
-
-    # ── Parse intent from raw SQL ────────────────────────────────────────────
-    primary_table, condition = _parse_sql_intent(contract.raw_sql)
-    if primary_table:
-        contract.primary_table = primary_table
-    if condition:
-        contract.condition = condition
-
-    # Build human-readable intent summary
-    op = contract.operation_type.value
-    contract.intent_summary = (
-        f"{op} on {contract.primary_table or 'unknown table'}"
-        + (f" WHERE {condition}" if condition else "")
-    )
-
-    # ── Row estimation via postgres_reader ───────────────────────────────────
-    if contract.primary_table:
-        try:
-            row_result = await mcp_client.postgres_reader(
-                "estimate_row_count",
-                {
-                    "table": contract.primary_table,
-                    "condition": condition or "",
-                    "tenant_id": contract.tenant_id,
-                },
-            )
-            contract.estimated_primary_rows = row_result.get("estimated_rows", 0)
-            contract.row_confidence = row_result.get("confidence_score", 0.5)
-        except mcp_client.MCPCallError as exc:
-            logger.warning("Row estimation failed: %s", exc)
-            contract.estimated_primary_rows = 0
-            contract.row_confidence = 0.0
-
-    # ── FK cascade analysis ──────────────────────────────────────────────────
-    if contract.primary_table and contract.operation_type in (
-        OperationType.DELETE, OperationType.UPDATE
-    ):
-        try:
-            fk_result = await mcp_client.postgres_reader(
-                "get_fk_graph",
-                {
-                    "table": contract.primary_table,
-                    "tenant_id": contract.tenant_id,
-                },
-            )
-            contract.cascade = _build_cascade_entries(
-                fk_result.get("dependents", []),
-                contract.estimated_primary_rows,
-            )
-        except mcp_client.MCPCallError as exc:
-            logger.warning("FK graph unavailable: %s", exc)
-            contract.cascade = []
-
-    # ── Trigger detection ────────────────────────────────────────────────────
-    if contract.primary_table:
-        try:
-            trigger_result = await mcp_client.postgres_reader(
-                "list_triggers",
-                {
-                    "table": contract.primary_table,
-                    "tenant_id": contract.tenant_id,
-                },
-            )
-            contract.external_triggers = _build_external_triggers(
-                trigger_result.get("triggers", [])
-            )
-        except mcp_client.MCPCallError as exc:
-            logger.warning("Trigger detection failed: %s", exc)
-            contract.external_triggers = []
-
-    # ── Soft-delete column check ─────────────────────────────────────────────
-    has_soft_delete = False
-    if contract.primary_table and contract.operation_type == OperationType.DELETE:
-        try:
-            sd_result = await mcp_client.postgres_reader(
-                "check_soft_delete",
-                {
-                    "table": contract.primary_table,
-                    "tenant_id": contract.tenant_id,
-                },
-            )
-            has_soft_delete = sd_result.get("has_soft_delete", False)
-        except mcp_client.MCPCallError:
-            has_soft_delete = False
-
-    # ── Reversibility classification (deterministic — no LLM) ───────────────
-    contract.reversibility, contract.reversibility_reason = _classify_reversibility(
-        contract, has_soft_delete
-    )
-
-    # Mark permanent components
-    contract.permanent_components = _identify_permanent_components(contract)
-
-    elapsed_ms = (datetime.utcnow() - start).total_seconds() * 1000
-    contract.add_provenance(
-        agent="ANALYSIS_STUB",
-        field_written=(
-            "intent_summary,primary_table,condition,estimated_primary_rows,"
-            "row_confidence,cascade,external_triggers,reversibility,"
-            "reversibility_reason,permanent_components"
-        ),
-        llm_involved=False,
-    )
-
-    logger.info(
-        "ANALYSIS complete",
-        extra={
-            "operation_id": contract.operation_id,
-            "primary_table": contract.primary_table,
-            "estimated_rows": contract.estimated_primary_rows,
-            "cascade_tables": len(contract.cascade),
-            "reversibility": contract.reversibility.value if contract.reversibility else None,
-            "elapsed_ms": round(elapsed_ms, 1),
-        },
-    )
-    return contract
+    analyzer = AnalyzerAgent(contract.operation_id, contract.tenant_id)
+    return await analyzer.analyze(contract)
 
 
 def _parse_sql_intent(raw_sql: str) -> tuple[str, str]:
