@@ -23,7 +23,7 @@ after writing the audit record. In Phase 2, a stub is called that no-ops.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from orchestrator import mcp_client
@@ -37,7 +37,7 @@ async def run_audit(contract: HandoffContract) -> HandoffContract:
     Write complete audit record and update memory store.
     Never raises — audit failures are logged but do not affect the workflow outcome.
     """
-    start = datetime.utcnow()
+    start = datetime.now(timezone.utc)
     op_id = contract.operation_id
     outcome = _determine_outcome(contract)
 
@@ -90,7 +90,7 @@ async def run_audit(contract: HandoffContract) -> HandoffContract:
     # ── Phase 2 feedback loop stub ───────────────────────────────────────────
     _trigger_feedback_loop_stub(contract)
 
-    elapsed_ms = (datetime.utcnow() - start).total_seconds() * 1000
+    elapsed_ms = (datetime.now(timezone.utc) - start).total_seconds() * 1000
     contract.add_provenance(
         agent="AUDIT",
         field_written="audit_record,memory_write_back",

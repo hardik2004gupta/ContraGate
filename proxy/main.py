@@ -30,7 +30,7 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import uvicorn
@@ -58,7 +58,9 @@ TARGET_MCP_URL = os.environ.get("TARGET_MCP_URL", "http://contragate-mcp:8010")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("ContraGate proxy starting on port %d", PORT)
+    await workflow_store.initialize()
     yield
+    await workflow_store.close()
     logger.info("ContraGate proxy shutting down")
 
 
@@ -85,7 +87,7 @@ async def health() -> dict:
         "status": "ok",
         "service": "contragate-proxy",
         "version": "0.2.0",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
     }
 
 

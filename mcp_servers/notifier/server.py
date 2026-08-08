@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -73,7 +73,7 @@ def send_approval_request(
         "historical_rejection_count": historical_rejection_count,
         "ui_url": ui_url,
         "poll_url": poll_url,
-        "received_at": datetime.utcnow().isoformat() + "Z",
+        "received_at": datetime.now(timezone.utc).isoformat() + "Z",
     }
     _pending[approval_id] = contract_info
 
@@ -177,7 +177,7 @@ def record_decision(
         "approval_id": approval_id,
         "decision": decision,
         "reason": reason,
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
     }
     try:
         httpx.post(PROXY_CALLBACK_URL, json=payload, timeout=10.0)

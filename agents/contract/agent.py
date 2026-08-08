@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import anthropic
@@ -77,7 +77,7 @@ class ContractAgent(BaseAgent):
           - approval_contract_json (full ApprovalContract JSON)
           - contract_assembled = True
         """
-        start = datetime.utcnow()
+        start = datetime.now(timezone.utc)
         logger.info(
             "CONTRACT_AGENT starting",
             extra={
@@ -120,7 +120,7 @@ class ContractAgent(BaseAgent):
         contract.approval_contract_json = approval_contract.model_dump_json()
         contract.contract_assembled = True
 
-        elapsed_ms = (datetime.utcnow() - start).total_seconds() * 1000
+        elapsed_ms = (datetime.now(timezone.utc) - start).total_seconds() * 1000
 
         # ── Step 6: Provenance (CLAUDE.md §22, invariant 14) ───────────────────
         contract.add_provenance(

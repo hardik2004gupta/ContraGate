@@ -6,7 +6,7 @@ These run without any external dependencies.
 """
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import ValidationError
 
 from orchestrator.handoff_schema import (
@@ -90,10 +90,14 @@ class TestProvenanceTracking:
 
     def test_provenance_timestamp_set_automatically(self):
         c = _make_contract()
-        before = datetime.utcnow()
+        before = datetime.now(timezone.utc)
         c.add_provenance("AUDIT", "audit_record")
-        after = datetime.utcnow()
+        after = datetime.now(timezone.utc)
         ts = c.workflow_provenance[0].timestamp
+        # Normalize to UTC for comparison in case Pydantic returns a tz-aware datetime
+        if ts.tzinfo is None:
+            from datetime import timezone as _tz
+            ts = ts.replace(tzinfo=_tz.utc)
         assert before <= ts <= after
 
 

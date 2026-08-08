@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from agents.base_agent import BaseAgent
 from agents.context_sim.retrieval_client import RetrievalClient
@@ -73,7 +73,7 @@ class ContextSimAgent(BaseAgent):
 
         Returns the updated HandoffContract.
         """
-        start = datetime.utcnow()
+        start = datetime.now(timezone.utc)
         logger.info(
             "CONTEXT_SIM_AGENT starting",
             extra={
@@ -123,7 +123,7 @@ class ContextSimAgent(BaseAgent):
         if contract.operation_type == OperationType.INSERT and contract.simulation_executed:
             contract.sequence_gap_warning = True
 
-        elapsed_ms = (datetime.utcnow() - start).total_seconds() * 1000
+        elapsed_ms = (datetime.now(timezone.utc) - start).total_seconds() * 1000
 
         contract.add_provenance(
             agent=self.AGENT_NAME,

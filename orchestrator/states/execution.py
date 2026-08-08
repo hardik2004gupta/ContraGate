@@ -18,7 +18,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from orchestrator import mcp_client
@@ -43,7 +43,7 @@ async def run_execution(contract: HandoffContract) -> HandoffContract:
     Stale-state guard: Verify that the manifest stored at intake matches
     the contract identity. If modified, abort execution.
     """
-    start = datetime.utcnow()
+    start = datetime.now(timezone.utc)
     op_id = contract.operation_id
 
     from orchestrator.workflow_store import workflow_store
@@ -92,7 +92,7 @@ async def run_execution(contract: HandoffContract) -> HandoffContract:
             timeout=30.0,
         )
         contract.execution_success = True
-        contract.execution_timestamp = datetime.utcnow()
+        contract.execution_timestamp = datetime.now(timezone.utc)
 
         await workflow_store.set_execution_result(op_id, {
             "success": True,
@@ -107,7 +107,7 @@ async def run_execution(contract: HandoffContract) -> HandoffContract:
     except mcp_client.MCPCallError as exc:
         logger.error("EXECUTION failed for %s: %s", op_id, exc)
         contract.execution_success = False
-        contract.execution_timestamp = datetime.utcnow()
+        contract.execution_timestamp = datetime.now(timezone.utc)
 
         await workflow_store.set_execution_result(op_id, {
             "success": False,
@@ -115,7 +115,7 @@ async def run_execution(contract: HandoffContract) -> HandoffContract:
             "executed_at": contract.execution_timestamp.isoformat() + "Z",
         })
 
-    elapsed_ms = (datetime.utcnow() - start).total_seconds() * 1000
+    elapsed_ms = (datetime.now(timezone.utc) - start).total_seconds() * 1000
     contract.add_provenance(
         agent="EXECUTION",
         field_written="execution_success,execution_timestamp",

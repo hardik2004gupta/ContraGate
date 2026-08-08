@@ -17,7 +17,7 @@ import logging
 import os
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from orchestrator.handoff_schema import (
@@ -104,7 +104,7 @@ def run_intake(manifest: dict[str, Any]) -> HandoffContract:
         tenant_id=tenant_id,
         submitted_by=submitted_by,
         source_type=source_type,
-        submission_timestamp=datetime.utcnow(),
+        submission_timestamp=datetime.now(timezone.utc),
         raw_sql=raw_sql,
         raw_intent=manifest.get("intent"),
         operation_type=operation_type,

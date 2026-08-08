@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from agents.base_agent import BaseAgent, wrap_untrusted
 from agents.analyzer.prompts import (
@@ -87,7 +87,7 @@ class AnalyzerAgent(BaseAgent):
         Selective re-analysis: if contract.stale_fields is set, only re-run
         fields listed there; all other fields are preserved as-is.
         """
-        start = datetime.utcnow()
+        start = datetime.now(timezone.utc)
 
         # ── Selective re-analysis guard ─────────────────────────────────────
         if needs_selective_reanalysis(contract):
@@ -198,7 +198,7 @@ class AnalyzerAgent(BaseAgent):
         )
 
         # ── Step 10: Log agent output to audit ──────────────────────────────
-        elapsed_ms = (datetime.utcnow() - start).total_seconds() * 1000
+        elapsed_ms = (datetime.now(timezone.utc) - start).total_seconds() * 1000
         contract_hash = hash_payload(contract.model_dump(mode="json"))
         await self.log_agent_output(
             output_summary=(

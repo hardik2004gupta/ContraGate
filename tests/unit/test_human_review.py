@@ -12,7 +12,7 @@ Verifies the HUMAN_REVIEW state:
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -52,7 +52,7 @@ def _make_record_with_decision(contract: HandoffContract, decision: str, reason:
         ),
         human_decision=decision,
         decision_reason=reason,
-        decision_timestamp=datetime.utcnow(),
+        decision_timestamp=datetime.now(timezone.utc),
     )
     record = WorkflowRecord(contract.operation_id, decided)
     return record

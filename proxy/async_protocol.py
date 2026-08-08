@@ -30,7 +30,7 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -70,7 +70,7 @@ async def list_pending_approvals() -> JSONResponse:
     items = []
     for r in records:
         c = r.contract
-        age_seconds = (datetime.utcnow() - r.created_at).total_seconds()
+        age_seconds = (datetime.now(timezone.utc) - r.created_at).total_seconds()
         items.append({
             "approval_id": r.approval_id,
             "operation_id": r.operation_id,

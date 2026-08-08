@@ -21,7 +21,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from orchestrator import mcp_client
 from orchestrator.handoff_schema import (
@@ -45,7 +45,7 @@ async def run_human_review(contract: HandoffContract) -> HandoffContract:
     Notify the approver and wait for a human decision.
     Returns contract with approval_state set by the human (or TIMED_OUT).
     """
-    start = datetime.utcnow()
+    start = datetime.now(timezone.utc)
     op_id = contract.operation_id
 
     # ── Send approval request to notifier ───────────────────────────────────
@@ -91,7 +91,7 @@ async def run_human_review(contract: HandoffContract) -> HandoffContract:
 
     deadline = start.timestamp() + REVIEW_TIMEOUT_SECONDS
 
-    while datetime.utcnow().timestamp() < deadline:
+    while datetime.now(timezone.utc).timestamp() < deadline:
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
 
         record = await workflow_store.get(op_id)
@@ -117,9 +117,9 @@ async def run_human_review(contract: HandoffContract) -> HandoffContract:
         )
         contract.approval_state = ApprovalState.TIMED_OUT
         contract.decision_reason = "Human review timed out — auto-rejected by ContraGate."
-        contract.decision_timestamp = datetime.utcnow()
+        contract.decision_timestamp = datetime.now(timezone.utc)
 
-    elapsed_min = (datetime.utcnow() - start).total_seconds() / 60.0
+    elapsed_min = (datetime.now(timezone.utc) - start).total_seconds() / 60.0
     contract.add_provenance(
         agent="HUMAN_REVIEW",
         field_written="approval_state,human_decision,decision_reason,decision_timestamp",

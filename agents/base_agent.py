@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from mcp_servers.audit_logger.checksum import hash_payload
@@ -76,7 +76,7 @@ class BaseAgent:
         if fn is None:
             raise ValueError(f"Unknown MCP server: {server!r}")
 
-        ts = datetime.utcnow().isoformat()
+        ts = datetime.now(timezone.utc).isoformat()
         input_hash = hash_payload(args)
 
         result = await fn(tool, args)
@@ -129,7 +129,7 @@ class BaseAgent:
                 "agent_name": self.AGENT_NAME,
                 "output_summary": output_summary,
                 "handoff_contract_hash": contract_hash,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             })
         except Exception as exc:
             logger.warning(

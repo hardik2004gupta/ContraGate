@@ -15,11 +15,11 @@ Security invariants (CLAUDE.md §22):
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class OperationType(str, Enum):
@@ -107,7 +107,7 @@ class HandoffContract(BaseModel):
     tenant_id: str
     submitted_by: str
     source_type: SourceType
-    submission_timestamp: datetime = Field(default_factory=datetime.utcnow)
+    submission_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Raw input (always wrapped in untrusted_input tags before LLM processing)
     raw_sql: str
@@ -182,7 +182,7 @@ class HandoffContract(BaseModel):
             ProvenanceEntry(
                 agent=agent,
                 field_written=field_written,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 llm_involved=llm_involved,
             )
         )
@@ -196,5 +196,4 @@ class HandoffContract(BaseModel):
                 )
         return self
 
-    class Config:
-        use_enum_values = False
+    model_config = ConfigDict(use_enum_values=False)

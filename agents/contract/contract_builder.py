@@ -27,7 +27,7 @@ Security (CLAUDE.md §22, invariants 2, 3, 12):
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 
 from orchestrator.handoff_schema import (
     HandoffContract,
@@ -72,9 +72,9 @@ def build_approval_contract(
     fields. Risk tier and reversibility originate from the deterministic pipeline.
     """
     timeout_at = (
-        datetime.utcnow() + timedelta(seconds=_REVIEW_TIMEOUT_SECONDS)
+        datetime.now(timezone.utc) + timedelta(seconds=_REVIEW_TIMEOUT_SECONDS)
     ).isoformat()
-    assembled_at = datetime.utcnow().isoformat()
+    assembled_at = datetime.now(timezone.utc).isoformat()
 
     sections = ContractSections(
         what_will_happen=_build_section1(contract, operation_summary),

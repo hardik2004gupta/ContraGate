@@ -15,7 +15,7 @@ Policy enforcement is deterministic — no LLM involvement.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from orchestrator import mcp_client
@@ -74,7 +74,7 @@ async def run_risk_gate(contract: HandoffContract) -> HandoffContract:
     Execute Read Impact Gate then Policy Gate.
     Returns updated HandoffContract with risk routing decision.
     """
-    start = datetime.utcnow()
+    start = datetime.now(timezone.utc)
 
     # ── Step 1: Read Impact Gate ─────────────────────────────────────────────
     explain_cost = 0.0
@@ -151,7 +151,7 @@ async def run_risk_gate(contract: HandoffContract) -> HandoffContract:
     if contract.auto_reject_triggered:
         contract.approval_state = ApprovalState.AUTO_REJECTED
 
-    elapsed_ms = (datetime.utcnow() - start).total_seconds() * 1000
+    elapsed_ms = (datetime.now(timezone.utc) - start).total_seconds() * 1000
     contract.add_provenance(
         agent="RISK_GATE",
         field_written=(
