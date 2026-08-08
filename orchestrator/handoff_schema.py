@@ -145,6 +145,7 @@ class HandoffContract(BaseModel):
     intent_summary_prose: str = ""
     rollback_plan: str | None = None
     contract_assembled: bool = False
+    approval_contract_json: str = ""  # Serialized ApprovalContract (Phase 5+)
 
     # Policy Gate outputs
     policy_violations: list[PolicyViolation] = Field(default_factory=list)
