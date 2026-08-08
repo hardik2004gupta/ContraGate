@@ -11,10 +11,12 @@
   "tools": [
     {
       "name": "begin_sandbox",
-      "description": "Open an explicit BEGIN transaction on the staging database. Returns a session_id for subsequent calls.",
+      "description": "Open an explicit BEGIN transaction on the staging database. Returns a session_id for subsequent calls. Sets sandbox_mode=true and statement_timeout=5000ms.",
       "inputSchema": {
         "type": "object",
-        "properties": { "tenant_id": { "type": "string" } },
+        "properties": {
+          "tenant_id": { "type": "string" }
+        },
         "required": ["tenant_id"]
       }
     },
@@ -32,7 +34,7 @@
     },
     {
       "name": "capture_diff",
-      "description": "Capture row counts for a list of tables before or after execution.",
+      "description": "Capture row counts for a list of tables. Returns key 'table_counts'. Call with phase='pre' before execute and phase='post' after.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -45,7 +47,7 @@
     },
     {
       "name": "get_trigger_log",
-      "description": "Read sandbox_trigger_log entries for this session.",
+      "description": "Read sandbox_trigger_log entries for this session. Returns key 'trigger_log'.",
       "inputSchema": {
         "type": "object",
         "properties": { "session_id": { "type": "string" } },

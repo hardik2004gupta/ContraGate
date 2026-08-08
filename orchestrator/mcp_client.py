@@ -2,7 +2,7 @@
 Thin async HTTP client for calling ContraGate MCP servers.
 
 Each MCP server exposes POST /call with body:
-  { "tool": "<tool_name>", "args": { ... } }
+  { "tool": "<tool_name>", "arguments": { ... } }
 
 The client handles auth, structured error propagation, and logging.
 Never used for arbitrary external network calls — only ContraGate-internal MCP servers.

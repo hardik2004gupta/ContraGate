@@ -145,7 +145,7 @@ async def _run_retrieval(contract: HandoffContract) -> list[HistoricalOperation]
             "top_k": 3,
         },
     )
-    ranked = stage3.get("ranked", [])
+    ranked = stage3.get("top3", [])
     return [_to_historical_operation(r) for r in ranked]
 
 
@@ -216,7 +216,7 @@ async def _run_simulation_attempt(contract: HandoffContract) -> dict:
         )
 
         # 5. Read trigger log
-        trigger_log = await mcp_client.transaction_sandbox(
+        trigger_log_resp = await mcp_client.transaction_sandbox(
             "get_trigger_log",
             {"session_id": session_id},
             timeout=5.0,
@@ -224,9 +224,9 @@ async def _run_simulation_attempt(contract: HandoffContract) -> dict:
 
         return {
             "session_id": session_id,
-            "pre": pre_diff.get("counts", {}),
-            "post": post_diff.get("counts", {}),
-            "trigger_log": trigger_log.get("entries", []),
+            "pre": pre_diff.get("table_counts", {}),
+            "post": post_diff.get("table_counts", {}),
+            "trigger_log": trigger_log_resp.get("trigger_log", []),
         }
 
     finally:

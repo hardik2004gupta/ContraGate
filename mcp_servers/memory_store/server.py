@@ -116,34 +116,56 @@ def store_operation(
 
 @server.tool("semantic_search")
 def semantic_search(
-    embedding: list[float],
+    intent: str,
     tenant_id: str,
     top_k: int = 20,
 ) -> dict:
     """
-    Cosine similarity search over pgvector embeddings.
-    Returns top_k operations sorted by cosine similarity.
+    Search over operation memory by intent text.
+
+    Phase 2: text-based ILIKE fallback (no pgvector embeddings yet).
+    Phase 4: will use pre-computed pgvector embeddings from the Anthropic embeddings API.
+
     All results are scoped to tenant_id.
     """
     conn = _get_conn()
     try:
-        embedding_str = f"[{','.join(str(x) for x in embedding)}]"
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                """
-                SELECT
-                    operation_id, intent_summary, affected_tables,
-                    operation_type, estimated_rows, actual_rows,
-                    outcome, decision_reason, blast_radius_delta,
-                    1 - (intent_embedding <=> %s::vector) AS similarity_score
-                FROM contragate_app.operation_memory
-                WHERE tenant_id = %s
-                  AND intent_embedding IS NOT NULL
-                ORDER BY intent_embedding <=> %s::vector
-                LIMIT %s
-                """,
-                (embedding_str, tenant_id, embedding_str, top_k),
-            )
+            # Phase 2: simple text similarity via ILIKE on key words from intent
+            # Phase 4 replaces this with: ORDER BY intent_embedding <=> query_embedding
+            words = [w.strip() for w in intent.split() if len(w.strip()) > 3]
+            if words:
+                pattern = "%" + "%".join(words[:5]) + "%"
+                cur.execute(
+                    """
+                    SELECT
+                        operation_id, intent_summary, affected_tables,
+                        operation_type, estimated_rows, actual_rows,
+                        outcome, decision_reason, blast_radius_delta,
+                        0.5 AS similarity_score
+                    FROM contragate_app.operation_memory
+                    WHERE tenant_id = %s
+                      AND LOWER(intent_summary) ILIKE LOWER(%s)
+                    ORDER BY decided_at DESC
+                    LIMIT %s
+                    """,
+                    (tenant_id, pattern, top_k),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT
+                        operation_id, intent_summary, affected_tables,
+                        operation_type, estimated_rows, actual_rows,
+                        outcome, decision_reason, blast_radius_delta,
+                        0.3 AS similarity_score
+                    FROM contragate_app.operation_memory
+                    WHERE tenant_id = %s
+                    ORDER BY decided_at DESC
+                    LIMIT %s
+                    """,
+                    (tenant_id, top_k),
+                )
             rows = [dict(r) for r in cur.fetchall()]
             for r in rows:
                 r["affected_tables"] = list(r["affected_tables"]) if r["affected_tables"] else []

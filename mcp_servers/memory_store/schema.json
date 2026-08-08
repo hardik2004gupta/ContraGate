@@ -13,18 +13,26 @@
           "operation_id": { "type": "string" },
           "tenant_id": { "type": "string" },
           "intent_summary": { "type": "string" },
-          "outcome": { "type": "string" }
+          "affected_tables": { "type": "array", "items": { "type": "string" } },
+          "operation_type": { "type": "string" },
+          "estimated_rows": { "type": "integer" },
+          "outcome": { "type": "string" },
+          "decision_reason": { "type": "string" },
+          "actual_rows": { "type": "integer" },
+          "blast_radius_delta": { "type": "number" },
+          "reanalysis_count": { "type": "integer" },
+          "embedding": { "type": "array", "items": { "type": "number" } }
         },
-        "required": ["operation_id", "tenant_id", "intent_summary", "outcome"]
+        "required": ["operation_id", "tenant_id", "intent_summary", "affected_tables", "operation_type", "estimated_rows", "outcome", "decision_reason"]
       }
     },
     {
       "name": "semantic_search",
-      "description": "Stage 1: cosine similarity search over pgvector embeddings.",
+      "description": "Stage 1: text-based search (Phase 2) / cosine similarity over pgvector embeddings (Phase 4).",
       "inputSchema": {
         "type": "object",
         "properties": {
-          "intent": { "type": "string" },
+          "intent": { "type": "string", "description": "Intent text to search for" },
           "tenant_id": { "type": "string" },
           "top_k": { "type": "integer", "default": 20 }
         },
@@ -39,22 +47,51 @@
         "properties": {
           "candidates": { "type": "array" },
           "current_tables": { "type": "array", "items": { "type": "string" } },
-          "tenant_id": { "type": "string" }
+          "tenant_id": { "type": "string" },
+          "threshold": { "type": "number" }
         },
         "required": ["candidates", "current_tables", "tenant_id"]
       }
     },
     {
       "name": "rerank_by_outcome",
-      "description": "Stage 3: outcome-aware reranking returning top-k by rerank score.",
+      "description": "Stage 3: outcome-aware reranking returning top 3 by rerank score. Returns key 'top3'.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "candidates": { "type": "array" },
-          "tenant_id": { "type": "string" },
-          "top_k": { "type": "integer", "default": 3 }
+          "tenant_id": { "type": "string" }
         },
         "required": ["candidates", "tenant_id"]
+      }
+    },
+    {
+      "name": "update_decision",
+      "description": "Update the human decision and reason for an operation already in memory.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "operation_id": { "type": "string" },
+          "tenant_id": { "type": "string" },
+          "decision": { "type": "string" },
+          "reason": { "type": "string" },
+          "timestamp": { "type": "string" }
+        },
+        "required": ["operation_id", "tenant_id", "decision", "reason", "timestamp"]
+      }
+    },
+    {
+      "name": "update_outcome",
+      "description": "Update operation with post-execution actual row count and compute accuracy delta.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "operation_id": { "type": "string" },
+          "tenant_id": { "type": "string" },
+          "actual_rows": { "type": "integer" },
+          "execution_success": { "type": "boolean" }
+        },
+        "required": ["operation_id", "tenant_id", "actual_rows", "execution_success"]
       }
     },
     {
@@ -71,16 +108,31 @@
       }
     },
     {
+      "name": "update_confidence_score",
+      "description": "Adjust the confidence score for a table/operation_type (called by feedback loop).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "table": { "type": "string" },
+          "operation_type": { "type": "string" },
+          "delta": { "type": "number" },
+          "tenant_id": { "type": "string" }
+        },
+        "required": ["table", "operation_type", "delta", "tenant_id"]
+      }
+    },
+    {
       "name": "check_auto_reject_pattern",
       "description": "Check if this operation matches a previously auto-rejected pattern within the lookback window.",
       "inputSchema": {
         "type": "object",
         "properties": {
+          "tables": { "type": "array", "items": { "type": "string" } },
           "operation_type": { "type": "string" },
-          "primary_table": { "type": "string" },
-          "tenant_id": { "type": "string" }
+          "tenant_id": { "type": "string" },
+          "lookback_days": { "type": "integer", "default": 30 }
         },
-        "required": ["operation_type", "primary_table", "tenant_id"]
+        "required": ["tables", "operation_type", "tenant_id"]
       }
     }
   ]

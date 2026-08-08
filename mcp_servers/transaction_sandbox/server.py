@@ -56,7 +56,7 @@ def _get_staging_conn() -> psycopg2.extensions.connection:
 
 
 @server.tool("begin_sandbox")
-def begin_sandbox(operation_id: str) -> dict:
+def begin_sandbox(tenant_id: str) -> dict:
     """
     Open an explicit transaction on the staging database and set sandbox mode.
 
@@ -110,11 +110,11 @@ def execute_in_sandbox(session_id: str, sql: str) -> dict:
 
 
 @server.tool("capture_diff")
-def capture_diff(session_id: str, tables: list[str]) -> dict:
+def capture_diff(session_id: str, tables: list[str], phase: str = "pre") -> dict:
     """
     Capture row counts before and after for each affected table.
 
-    Called twice: once before execute_in_sandbox and once after.
+    Called twice: once before execute_in_sandbox (phase='pre') and once after (phase='post').
     The caller (context_sim agent) computes the delta between the two calls.
     """
     conn = _sessions.get(session_id)
