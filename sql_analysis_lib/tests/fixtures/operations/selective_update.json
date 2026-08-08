@@ -1,0 +1,112 @@
+[
+  {
+    "scenario_id": "upd_001",
+    "description": "UPDATE selective small row count, no triggers, PITR confirmed — REVERSIBLE_PITR",
+    "operation_type": "UPDATE",
+    "table": "cg_employees",
+    "sql": "UPDATE cg_employees SET salary = salary * 1.05 WHERE id = 42",
+    "condition": "id = 42",
+    "schema_fixture": "simple_fk",
+    "inputs": {
+      "has_soft_delete_column": false,
+      "pitr_confirmed": true,
+      "pitr_window_hours": 72.0,
+      "estimated_rows": 1,
+      "trigger_has_permanent_effects": false
+    },
+    "expected": {
+      "reversibility": "REVERSIBLE_PITR",
+      "pitr_available": true,
+      "has_permanent_side_effects": false,
+      "permanent_components_count_min": 0
+    }
+  },
+  {
+    "scenario_id": "upd_002",
+    "description": "UPDATE bulk >10k rows, no PITR, no soft-delete — PERMANENT",
+    "operation_type": "UPDATE",
+    "table": "cg_orders",
+    "sql": "UPDATE cg_orders SET status = 'archived' WHERE created_at < NOW() - INTERVAL '2 years'",
+    "condition": "created_at < NOW() - INTERVAL '2 years'",
+    "schema_fixture": "ecommerce",
+    "inputs": {
+      "has_soft_delete_column": false,
+      "pitr_confirmed": false,
+      "pitr_window_hours": null,
+      "estimated_rows": 25000,
+      "trigger_has_permanent_effects": false
+    },
+    "expected": {
+      "reversibility": "PERMANENT",
+      "reversibility_reason_contains": "no_recovery_path",
+      "has_permanent_side_effects": false,
+      "permanent_components_count_min": 1
+    }
+  },
+  {
+    "scenario_id": "upd_003",
+    "description": "UPDATE bulk PII table (email column), PITR confirmed — REVERSIBLE_PITR",
+    "operation_type": "UPDATE",
+    "table": "cg_customer_profiles",
+    "sql": "UPDATE cg_customer_profiles SET email = lower(email) WHERE email != lower(email)",
+    "condition": "email != lower(email)",
+    "schema_fixture": "pii_tagged",
+    "inputs": {
+      "has_soft_delete_column": false,
+      "pitr_confirmed": true,
+      "pitr_window_hours": 168.0,
+      "estimated_rows": 3000,
+      "trigger_has_permanent_effects": false
+    },
+    "expected": {
+      "reversibility": "REVERSIBLE_PITR",
+      "pitr_available": true,
+      "has_permanent_side_effects": false,
+      "permanent_components_count_min": 0
+    }
+  },
+  {
+    "scenario_id": "upd_004",
+    "description": "UPDATE external payment table (FK side effects + external payment), PITR confirmed — REVERSIBLE_PITR",
+    "operation_type": "UPDATE",
+    "table": "cg_payment_methods",
+    "sql": "UPDATE cg_payment_methods SET stripe_token = NULL WHERE card_last4 = '0000'",
+    "condition": "card_last4 = '0000'",
+    "schema_fixture": "ecommerce",
+    "inputs": {
+      "has_soft_delete_column": false,
+      "pitr_confirmed": true,
+      "pitr_window_hours": 72.0,
+      "estimated_rows": 50,
+      "trigger_has_permanent_effects": false
+    },
+    "expected": {
+      "reversibility": "REVERSIBLE_PITR",
+      "pitr_available": true,
+      "has_permanent_side_effects": false,
+      "permanent_components_count_min": 0
+    }
+  },
+  {
+    "scenario_id": "upd_005",
+    "description": "CTE-based UPDATE, no soft-delete, no PITR — PERMANENT",
+    "operation_type": "UPDATE",
+    "table": "cg_employees",
+    "sql": "WITH top_paid AS (SELECT id FROM cg_employees ORDER BY salary DESC LIMIT 10) UPDATE cg_employees SET salary = 0 WHERE id IN (SELECT id FROM top_paid)",
+    "condition": "id IN (SELECT id FROM top_paid)",
+    "schema_fixture": "simple_fk",
+    "inputs": {
+      "has_soft_delete_column": false,
+      "pitr_confirmed": false,
+      "pitr_window_hours": null,
+      "estimated_rows": 10,
+      "trigger_has_permanent_effects": false
+    },
+    "expected": {
+      "reversibility": "PERMANENT",
+      "reversibility_reason_contains": "no_recovery_path",
+      "has_permanent_side_effects": false,
+      "permanent_components_count_min": 1
+    }
+  }
+]

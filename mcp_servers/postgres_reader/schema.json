@@ -1,0 +1,93 @@
+{
+  "name": "postgres-reader",
+  "version": "0.2.0",
+  "description": "SELECT-only access to production PostgreSQL database for schema inspection, EXPLAIN, row estimation, FK tracing, trigger detection, and PII tag lookup.",
+  "port": 8010,
+  "tools": [
+    {
+      "name": "get_table_schema",
+      "description": "Return column definitions, data types, constraints, and indexes for a table.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "table": { "type": "string" },
+          "tenant_id": { "type": "string" }
+        },
+        "required": ["table", "tenant_id"]
+      }
+    },
+    {
+      "name": "run_explain_tool",
+      "description": "Run EXPLAIN (FORMAT JSON) on a SQL query. Never executes the query. Returns the full query plan JSON.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sql": { "type": "string", "description": "EXPLAIN ... SQL statement (must start with EXPLAIN)" },
+          "tenant_id": { "type": "string" }
+        },
+        "required": ["sql", "tenant_id"]
+      }
+    },
+    {
+      "name": "estimate_row_count",
+      "description": "Return estimated row count for a table with optional WHERE condition. Uses pg_stat_user_tables for base count.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "table": { "type": "string" },
+          "condition": { "type": "string", "description": "WHERE clause without the WHERE keyword" },
+          "tenant_id": { "type": "string" }
+        },
+        "required": ["table", "tenant_id"]
+      }
+    },
+    {
+      "name": "get_fk_graph",
+      "description": "Return all tables that reference the given table via foreign key constraints, with cascade actions and depth.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "table": { "type": "string" },
+          "tenant_id": { "type": "string" }
+        },
+        "required": ["table", "tenant_id"]
+      }
+    },
+    {
+      "name": "list_triggers",
+      "description": "Return all triggers on a table, classified by whether they invoke non-transactional extensions (pg_net, dblink).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "table": { "type": "string" },
+          "tenant_id": { "type": "string" }
+        },
+        "required": ["table", "tenant_id"]
+      }
+    },
+    {
+      "name": "check_soft_delete",
+      "description": "Check whether a table has a soft-delete column (deleted_at, is_deleted, etc.).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "table": { "type": "string" },
+          "tenant_id": { "type": "string" }
+        },
+        "required": ["table", "tenant_id"]
+      }
+    },
+    {
+      "name": "get_pii_tags",
+      "description": "Return PII classification for a list of tables from the pii_registry.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tables": { "type": "array", "items": { "type": "string" } },
+          "tenant_id": { "type": "string" }
+        },
+        "required": ["tables", "tenant_id"]
+      }
+    }
+  ]
+}

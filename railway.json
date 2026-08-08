@@ -1,0 +1,47 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE"
+  },
+  "deploy": {
+    "numReplicas": 1,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3
+  },
+  "services": {
+    "contragate-proxy-orchestrator": {
+      "description": "Combined MCP proxy and LangGraph orchestrator. Exposes the public URL that external agents point their MCP client at.",
+      "dockerfile": "proxy/Dockerfile.prod",
+      "healthcheckPath": "/health",
+      "port": 8000
+    },
+    "contragate-agents": {
+      "description": "Three-agent service (Analyzer, Context+Sim, Contract). Stateless per invocation.",
+      "dockerfile": "agents/Dockerfile",
+      "healthcheckPath": "/health",
+      "port": 8002,
+      "numReplicas": 2
+    },
+    "contragate-mcp": {
+      "description": "All six MCP servers. Each can be scaled independently.",
+      "dockerfile": "mcp_servers/Dockerfile",
+      "healthcheckPath": "/health",
+      "port": 8010
+    },
+    "contragate-ui": {
+      "description": "React approval UI. Static hosting.",
+      "dockerfile": "ui/Dockerfile",
+      "port": 3000
+    }
+  },
+  "plugins": {
+    "postgresql-app": {
+      "description": "Application database (memory store, audit log, policy store)",
+      "version": "16"
+    },
+    "postgresql-staging": {
+      "description": "Staging database (transaction sandbox simulation)",
+      "version": "16"
+    }
+  }
+}

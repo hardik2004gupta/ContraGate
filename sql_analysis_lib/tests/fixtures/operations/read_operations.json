@@ -1,0 +1,73 @@
+[
+  {
+    "scenario_id": "read_001",
+    "description": "SELECT on non-PII table with low EXPLAIN cost — read-only, REVERSIBLE_AUTOMATED",
+    "operation_type": "SELECT",
+    "table": "cg_departments",
+    "sql": "SELECT * FROM cg_departments WHERE name LIKE 'Eng%'",
+    "condition": "name LIKE 'Eng%'",
+    "schema_fixture": "simple_fk",
+    "inputs": {
+      "has_soft_delete_column": false,
+      "pitr_confirmed": false,
+      "pitr_window_hours": null,
+      "estimated_rows": 3,
+      "trigger_has_permanent_effects": false
+    },
+    "expected": {
+      "reversibility": "REVERSIBLE_AUTOMATED",
+      "reversibility_reason_contains": "read-only",
+      "has_permanent_side_effects": false,
+      "explain": {
+        "total_cost_lt": 50000,
+        "estimated_rows_gt": 0
+      }
+    }
+  },
+  {
+    "scenario_id": "read_002",
+    "description": "SELECT on PII table (email, phone, ssn columns) — read-only, REVERSIBLE_AUTOMATED, PII flag raised",
+    "operation_type": "SELECT",
+    "table": "cg_customer_profiles",
+    "sql": "SELECT email, phone FROM cg_customer_profiles WHERE id = 1",
+    "condition": "id = 1",
+    "schema_fixture": "pii_tagged",
+    "inputs": {
+      "has_soft_delete_column": false,
+      "pitr_confirmed": false,
+      "pitr_window_hours": null,
+      "estimated_rows": 1,
+      "trigger_has_permanent_effects": false
+    },
+    "expected": {
+      "reversibility": "REVERSIBLE_AUTOMATED",
+      "reversibility_reason_contains": "read-only",
+      "has_permanent_side_effects": false,
+      "pii_columns": ["email", "phone"]
+    }
+  },
+  {
+    "scenario_id": "read_003",
+    "description": "SELECT with high EXPLAIN cost (full scan on large table) — triggers Read Impact Gate threshold",
+    "operation_type": "SELECT",
+    "table": "cg_txn_log",
+    "sql": "SELECT * FROM cg_txn_log WHERE merchant LIKE '%amazon%'",
+    "condition": "merchant LIKE '%amazon%'",
+    "schema_fixture": "pii_tagged",
+    "inputs": {
+      "has_soft_delete_column": false,
+      "pitr_confirmed": false,
+      "pitr_window_hours": null,
+      "estimated_rows": 1000000,
+      "trigger_has_permanent_effects": false
+    },
+    "expected": {
+      "reversibility": "REVERSIBLE_AUTOMATED",
+      "reversibility_reason_contains": "read-only",
+      "has_permanent_side_effects": false,
+      "explain": {
+        "total_cost_gt": 50000
+      }
+    }
+  }
+]

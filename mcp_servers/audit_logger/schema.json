@@ -1,0 +1,73 @@
+{
+  "name": "audit-logger",
+  "version": "0.2.0",
+  "description": "Append-only tamper-evident audit log with SHA-256 checksums per row. No UPDATE or DELETE from normal code paths.",
+  "port": 8013,
+  "tools": [
+    {
+      "name": "log_execution",
+      "description": "Append a completed execution record to the audit log.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "operation_id": { "type": "string" },
+          "tenant_id": { "type": "string" },
+          "outcome": { "type": "string" },
+          "contract_json": { "type": "string" }
+        },
+        "required": ["operation_id", "tenant_id", "outcome"]
+      }
+    },
+    {
+      "name": "log_auto_reject",
+      "description": "Append an auto-rejection record citing the specific policy rule.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "operation_id": { "type": "string" },
+          "tenant_id": { "type": "string" },
+          "auto_reject_reason": { "type": "string" }
+        },
+        "required": ["operation_id", "tenant_id"]
+      }
+    },
+    {
+      "name": "log_human_decision",
+      "description": "Append a human approval/rejection decision to the audit log.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "operation_id": { "type": "string" },
+          "decision": { "type": "string" },
+          "reason": { "type": "string" },
+          "approver_id": { "type": "string" }
+        },
+        "required": ["operation_id", "decision", "reason"]
+      }
+    },
+    {
+      "name": "list_operations",
+      "description": "List completed operations for the audit log UI, paginated.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tenant_id": { "type": "string" },
+          "limit": { "type": "integer", "default": 50 },
+          "offset": { "type": "integer", "default": 0 }
+        },
+        "required": ["tenant_id"]
+      }
+    },
+    {
+      "name": "verify_checksum",
+      "description": "Verify the stored SHA-256 checksum matches the current row content for an operation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "operation_id": { "type": "string" }
+        },
+        "required": ["operation_id"]
+      }
+    }
+  ]
+}

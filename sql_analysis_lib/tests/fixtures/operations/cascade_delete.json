@@ -1,0 +1,67 @@
+[
+  {
+    "scenario_id": "cas_001",
+    "description": "DELETE single-level cascade: deleting from cg_users cascades to cg_orders",
+    "operation_type": "DELETE",
+    "table": "cg_users",
+    "sql": "DELETE FROM cg_users WHERE id = 1",
+    "condition": "id = 1",
+    "schema_fixture": "ecommerce",
+    "inputs": {
+      "has_soft_delete_column": true,
+      "pitr_confirmed": false,
+      "pitr_window_hours": null,
+      "estimated_rows": 1
+    },
+    "expected": {
+      "reversibility": "REVERSIBLE_AUTOMATED",
+      "cascade_depth_min": 1,
+      "cascade_includes_tables": ["cg_orders", "cg_notifications"],
+      "has_circular_reference": false,
+      "max_depth_reached": false
+    }
+  },
+  {
+    "scenario_id": "cas_002",
+    "description": "DELETE cascade depth > 5 levels (cg_l1 → ... → cg_l6): max_depth_reached=True at depth 5",
+    "operation_type": "DELETE",
+    "table": "cg_l1",
+    "sql": "DELETE FROM cg_l1 WHERE id = 1",
+    "condition": "id = 1",
+    "schema_fixture": "deep_cascade",
+    "inputs": {
+      "has_soft_delete_column": false,
+      "pitr_confirmed": false,
+      "pitr_window_hours": null,
+      "estimated_rows": 1
+    },
+    "expected": {
+      "reversibility": "PERMANENT",
+      "cascade_depth_min": 5,
+      "max_depth_reached": true,
+      "has_circular_reference": false
+    }
+  },
+  {
+    "scenario_id": "cas_003",
+    "description": "DELETE on departments with CASCADE to employees (single-level, simple FK schema)",
+    "operation_type": "DELETE",
+    "table": "cg_departments",
+    "sql": "DELETE FROM cg_departments WHERE id = 5",
+    "condition": "id = 5",
+    "schema_fixture": "simple_fk",
+    "inputs": {
+      "has_soft_delete_column": false,
+      "pitr_confirmed": false,
+      "pitr_window_hours": null,
+      "estimated_rows": 1
+    },
+    "expected": {
+      "reversibility": "PERMANENT",
+      "cascade_depth_min": 1,
+      "cascade_includes_tables": ["cg_employees"],
+      "has_circular_reference": false,
+      "max_depth_reached": false
+    }
+  }
+]

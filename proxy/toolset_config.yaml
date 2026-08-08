@@ -1,0 +1,34 @@
+# toolset_config.yaml
+# Known PostgreSQL MCP tool → schema mapping for ContraGate proxy interception.
+# PHASE 0 SCAFFOLD — populate with real tool names in Phase 2.
+#
+# This file tells the proxy which incoming MCP tool calls contain SQL
+# and how to extract the raw_sql field from each tool's arguments.
+
+postgresql_tools:
+  # Tools that contain SQL to intercept
+  - tool_name: execute_query
+    sql_field: query
+    operation_types: [SELECT, INSERT, UPDATE, DELETE, DDL]
+
+  - tool_name: run_sql
+    sql_field: sql
+    operation_types: [SELECT, INSERT, UPDATE, DELETE, DDL]
+
+  - tool_name: query
+    sql_field: query
+    operation_types: [SELECT, INSERT, UPDATE, DELETE, DDL]
+
+  # Read-only tools — still pass through Read Impact Gate
+  - tool_name: describe_table
+    sql_field: null
+    operation_types: [META]
+
+  - tool_name: list_tables
+    sql_field: null
+    operation_types: [META]
+
+# Target MCP server to relay approved operations to
+target_mcp_server:
+  name: postgresql-mcp-server
+  url: ${TARGET_POSTGRES_MCP_URL}

@@ -1,0 +1,46 @@
+{
+  "name": "notifier",
+  "version": "0.2.0",
+  "description": "Consequence contract delivery (Slack in production, terminal mock in local dev) and approval decision capture.",
+  "port": 8020,
+  "local_dev_endpoints": {
+    "approve": "POST /dev/approve",
+    "reject": "POST /dev/reject",
+    "modify": "POST /dev/modify",
+    "list_pending": "GET /dev/pending"
+  },
+  "tools": [
+    {
+      "name": "send_approval_request",
+      "description": "Deliver consequence contract summary to human approver via Slack (production) or terminal (local dev).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "approval_id": { "type": "string" },
+          "operation_summary": { "type": "string" },
+          "risk_tier": { "type": "string" },
+          "primary_table": { "type": "string" },
+          "estimated_rows": { "type": "integer" },
+          "reversibility": { "type": "string" },
+          "historical_rejection_count": { "type": "integer" },
+          "ui_url": { "type": "string" },
+          "poll_url": { "type": "string" }
+        },
+        "required": ["approval_id", "operation_summary", "risk_tier", "primary_table", "estimated_rows", "reversibility"]
+      }
+    },
+    {
+      "name": "record_decision",
+      "description": "Record a human decision and reason, then post the decision back to the proxy callback URL.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "approval_id": { "type": "string" },
+          "decision": { "type": "string", "enum": ["APPROVE", "REJECT", "MODIFY", "REQUEST_PREREQUISITE"] },
+          "reason": { "type": "string", "description": "Minimum 10 characters" }
+        },
+        "required": ["approval_id", "decision", "reason"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "name": "memory-store",
+  "version": "0.2.0",
+  "description": "pgvector-backed operation memory. Tenant-scoped — every query filters by tenant_id. Three-stage retrieval: semantic search → Jaccard filter → outcome reranking.",
+  "port": 8012,
+  "tools": [
+    {
+      "name": "store_operation",
+      "description": "Write an operation to the memory store after a human decision.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "operation_id": { "type": "string" },
+          "tenant_id": { "type": "string" },
+          "intent_summary": { "type": "string" },
+          "outcome": { "type": "string" }
+        },
+        "required": ["operation_id", "tenant_id", "intent_summary", "outcome"]
+      }
+    },
+    {
+      "name": "semantic_search",
+      "description": "Stage 1: cosine similarity search over pgvector embeddings.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "intent": { "type": "string" },
+          "tenant_id": { "type": "string" },
+          "top_k": { "type": "integer", "default": 20 }
+        },
+        "required": ["intent", "tenant_id"]
+      }
+    },
+    {
+      "name": "filter_by_table_overlap",
+      "description": "Stage 2: Jaccard similarity filter on affected table sets.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "candidates": { "type": "array" },
+          "current_tables": { "type": "array", "items": { "type": "string" } },
+          "tenant_id": { "type": "string" }
+        },
+        "required": ["candidates", "current_tables", "tenant_id"]
+      }
+    },
+    {
+      "name": "rerank_by_outcome",
+      "description": "Stage 3: outcome-aware reranking returning top-k by rerank score.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "candidates": { "type": "array" },
+          "tenant_id": { "type": "string" },
+          "top_k": { "type": "integer", "default": 3 }
+        },
+        "required": ["candidates", "tenant_id"]
+      }
+    },
+    {
+      "name": "get_confidence_scores",
+      "description": "Return confidence score for a table + operation_type combination.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "table": { "type": "string" },
+          "operation_type": { "type": "string" },
+          "tenant_id": { "type": "string" }
+        },
+        "required": ["table", "operation_type", "tenant_id"]
+      }
+    },
+    {
+      "name": "check_auto_reject_pattern",
+      "description": "Check if this operation matches a previously auto-rejected pattern within the lookback window.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "operation_type": { "type": "string" },
+          "primary_table": { "type": "string" },
+          "tenant_id": { "type": "string" }
+        },
+        "required": ["operation_type", "primary_table", "tenant_id"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,130 @@
+[
+  {
+    "scenario_id": "ddl_001",
+    "description": "DROP TABLE on a table with no FK dependents",
+    "operation_type": "DROP",
+    "table": "cg_audit_events",
+    "sql": "DROP TABLE cg_audit_events",
+    "condition": null,
+    "schema_fixture": "ecommerce",
+    "expected": {
+      "reversibility": "PERMANENT",
+      "reversibility_reason_contains": "DDL",
+      "has_permanent_side_effects": false,
+      "cascade_tables": [],
+      "trigger_count": 0
+    }
+  },
+  {
+    "scenario_id": "ddl_002",
+    "description": "TRUNCATE table — DDL, always PERMANENT regardless of soft-delete",
+    "operation_type": "TRUNCATE",
+    "table": "cg_orders",
+    "sql": "TRUNCATE TABLE cg_orders",
+    "condition": null,
+    "schema_fixture": "ecommerce",
+    "expected": {
+      "reversibility": "PERMANENT",
+      "reversibility_reason_contains": "DDL",
+      "has_permanent_side_effects": false,
+      "cascade_tables": [],
+      "trigger_count": 0
+    }
+  },
+  {
+    "scenario_id": "ddl_003",
+    "description": "ALTER TABLE ADD COLUMN NOT NULL — DDL, PERMANENT even if table has soft-delete",
+    "operation_type": "ALTER",
+    "table": "cg_users",
+    "sql": "ALTER TABLE cg_users ADD COLUMN verified_at TIMESTAMPTZ NOT NULL DEFAULT NOW()",
+    "condition": null,
+    "schema_fixture": "ecommerce",
+    "expected": {
+      "reversibility": "PERMANENT",
+      "reversibility_reason_contains": "DDL",
+      "has_permanent_side_effects": false,
+      "cascade_tables": [],
+      "trigger_count": 0
+    }
+  },
+  {
+    "scenario_id": "ddl_004",
+    "description": "ALTER TABLE DROP COLUMN — irreversible schema change",
+    "operation_type": "ALTER",
+    "table": "cg_users",
+    "sql": "ALTER TABLE cg_users DROP COLUMN phone",
+    "condition": null,
+    "schema_fixture": "ecommerce",
+    "expected": {
+      "reversibility": "PERMANENT",
+      "reversibility_reason_contains": "DDL",
+      "has_permanent_side_effects": false,
+      "cascade_tables": [],
+      "trigger_count": 0
+    }
+  },
+  {
+    "scenario_id": "ddl_005",
+    "description": "ALTER TABLE RENAME — schema-level change, always PERMANENT",
+    "operation_type": "ALTER",
+    "table": "cg_users",
+    "sql": "ALTER TABLE cg_users RENAME TO cg_accounts",
+    "condition": null,
+    "schema_fixture": "ecommerce",
+    "expected": {
+      "reversibility": "PERMANENT",
+      "reversibility_reason_contains": "DDL",
+      "has_permanent_side_effects": false,
+      "cascade_tables": [],
+      "trigger_count": 0
+    }
+  },
+  {
+    "scenario_id": "ddl_006",
+    "description": "CREATE INDEX — DDL, PERMANENT (requires DROP INDEX to undo)",
+    "operation_type": "DDL",
+    "table": "cg_orders",
+    "sql": "CREATE INDEX CONCURRENTLY idx_orders_status ON cg_orders(status)",
+    "condition": null,
+    "schema_fixture": "ecommerce",
+    "expected": {
+      "reversibility": "PERMANENT",
+      "reversibility_reason_contains": "DDL",
+      "has_permanent_side_effects": false,
+      "cascade_tables": [],
+      "trigger_count": 0
+    }
+  },
+  {
+    "scenario_id": "ddl_007",
+    "description": "CREATE TABLE — DDL, PERMANENT",
+    "operation_type": "DDL",
+    "table": "cg_new_table",
+    "sql": "CREATE TABLE cg_new_table (id SERIAL PRIMARY KEY, val TEXT)",
+    "condition": null,
+    "schema_fixture": "ecommerce",
+    "expected": {
+      "reversibility": "PERMANENT",
+      "reversibility_reason_contains": "DDL",
+      "has_permanent_side_effects": false,
+      "cascade_tables": [],
+      "trigger_count": 0
+    }
+  },
+  {
+    "scenario_id": "ddl_008",
+    "description": "DDL+DML in transaction — TRUNCATE in same txn as INSERT; DDL rule wins",
+    "operation_type": "TRUNCATE",
+    "table": "cg_orders",
+    "sql": "TRUNCATE cg_orders; INSERT INTO cg_orders(user_id, total) VALUES (1, 99.00)",
+    "condition": null,
+    "schema_fixture": "ecommerce",
+    "expected": {
+      "reversibility": "PERMANENT",
+      "reversibility_reason_contains": "DDL",
+      "has_permanent_side_effects": false,
+      "cascade_tables": [],
+      "trigger_count": 0
+    }
+  }
+]

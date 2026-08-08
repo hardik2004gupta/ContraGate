@@ -1,0 +1,90 @@
+[
+  {
+    "scenario_id": "edge_001",
+    "description": "INSERT single row — REVERSIBLE_AUTOMATED (can DELETE the inserted row by PK)",
+    "operation_type": "INSERT",
+    "table": "cg_employees",
+    "sql": "INSERT INTO cg_employees(dept_id, name, salary) VALUES (1, 'Alice', 95000)",
+    "condition": null,
+    "schema_fixture": "simple_fk",
+    "inputs": {
+      "has_soft_delete_column": false,
+      "pitr_confirmed": false,
+      "pitr_window_hours": null,
+      "estimated_rows": 1,
+      "trigger_has_permanent_effects": false
+    },
+    "expected": {
+      "reversibility": "REVERSIBLE_AUTOMATED",
+      "reversibility_reason_contains": "INSERT",
+      "has_permanent_side_effects": false,
+      "permanent_components_count_min": 0
+    }
+  },
+  {
+    "scenario_id": "edge_002",
+    "description": "INSERT batch >1000 rows via SELECT — REVERSIBLE_AUTOMATED",
+    "operation_type": "INSERT",
+    "table": "cg_notifications",
+    "sql": "INSERT INTO cg_notifications(user_id, message) SELECT id, 'Welcome back!' FROM cg_users WHERE deleted_at IS NULL",
+    "condition": null,
+    "schema_fixture": "ecommerce",
+    "inputs": {
+      "has_soft_delete_column": false,
+      "pitr_confirmed": false,
+      "pitr_window_hours": null,
+      "estimated_rows": 5000,
+      "trigger_has_permanent_effects": false
+    },
+    "expected": {
+      "reversibility": "REVERSIBLE_AUTOMATED",
+      "reversibility_reason_contains": "INSERT",
+      "has_permanent_side_effects": false,
+      "permanent_components_count_min": 0
+    }
+  },
+  {
+    "scenario_id": "edge_003",
+    "description": "Complex multi-table JOIN update, no soft-delete, no PITR — PERMANENT",
+    "operation_type": "UPDATE",
+    "table": "cg_employees",
+    "sql": "UPDATE cg_employees e SET salary = salary * 0.5 FROM cg_departments d WHERE e.dept_id = d.id AND d.name = 'Sales'",
+    "condition": "dept_id IN (SELECT id FROM cg_departments WHERE name = 'Sales')",
+    "schema_fixture": "simple_fk",
+    "inputs": {
+      "has_soft_delete_column": false,
+      "pitr_confirmed": false,
+      "pitr_window_hours": null,
+      "estimated_rows": 1200,
+      "trigger_has_permanent_effects": false
+    },
+    "expected": {
+      "reversibility": "PERMANENT",
+      "reversibility_reason_contains": "no_recovery_path",
+      "has_permanent_side_effects": false,
+      "permanent_components_count_min": 1
+    }
+  },
+  {
+    "scenario_id": "edge_004",
+    "description": "Nested subquery DELETE on cg_users (has soft-delete) — REVERSIBLE_AUTOMATED",
+    "operation_type": "DELETE",
+    "table": "cg_users",
+    "sql": "DELETE FROM cg_users WHERE id IN (SELECT user_id FROM cg_orders WHERE total > 10000 AND status = 'fraud')",
+    "condition": "id IN (SELECT user_id FROM cg_orders WHERE total > 10000 AND status = 'fraud')",
+    "schema_fixture": "ecommerce",
+    "inputs": {
+      "has_soft_delete_column": true,
+      "pitr_confirmed": false,
+      "pitr_window_hours": null,
+      "estimated_rows": 50,
+      "trigger_has_permanent_effects": false
+    },
+    "expected": {
+      "reversibility": "REVERSIBLE_AUTOMATED",
+      "reversibility_reason_contains": "soft-delete",
+      "has_permanent_side_effects": false,
+      "permanent_components_count_min": 0
+    }
+  }
+]

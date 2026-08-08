@@ -1,0 +1,24 @@
+# ContraGate — Production (Railway) Docker Compose Overrides
+# Used with: docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+# In Railway, this is handled by railway.json — this file documents production differences.
+
+services:
+
+  # In production, DATABASE_URL and STAGING_DATABASE_URL are injected by Railway
+  # from the two PostgreSQL plugin instances — do NOT set them here.
+
+  # The contragate-db service does not run in production — Railway provides PostgreSQL.
+  contragate-db:
+    profiles:
+      - local-only  # Prevents this service from starting in production mode
+
+  # Production: Slack notifier instead of mock
+  contragate-notifier:
+    environment:
+      USE_MOCK_NOTIFIER: "false"
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN}
+      SLACK_APPROVAL_CHANNEL: ${SLACK_APPROVAL_CHANNEL}
+
+  # Production: Combined proxy + orchestrator service (Railway consolidation)
+  # The proxy and orchestrator run as a single service for Railway's resource model.
+  # This is defined in railway.json.

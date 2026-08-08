@@ -1,0 +1,210 @@
+# ContraGate — Local Development Docker Compose
+# Seven containers. See CLAUDE.md §24 for full architecture details.
+# Startup order: db → mcp → orchestrator → agents(stub) → proxy → notifier → ui
+
+x-common-env: &common-env
+  DATABASE_URL: postgresql://contragate:contragate_local@contragate-db:5432/contragate
+  STAGING_DATABASE_URL: postgresql://contragate:contragate_local@contragate-db:5432/contragate
+  CONTRAGATE_TENANT_ID: ${CONTRAGATE_TENANT_ID:-demo_tenant}
+  CONTRAGATE_MCP_API_KEY: ${CONTRAGATE_MCP_API_KEY:-dev-mcp-key}
+  USE_MOCK_AUTH: "true"
+
+x-mcp-urls: &mcp-urls
+  POSTGRES_READER_URL: http://contragate-mcp:8010
+  TRANSACTION_SANDBOX_URL: http://contragate-mcp:8011
+  MEMORY_STORE_URL: http://contragate-mcp:8012
+  AUDIT_LOGGER_URL: http://contragate-mcp:8013
+  POLICY_STORE_URL: http://contragate-mcp:8014
+  NOTIFIER_URL: http://contragate-notifier:8020
+
+services:
+
+  # ── 1. contragate-db ─────────────────────────────────────────────────────────
+  # PostgreSQL 16 with pgvector.
+  # Hosts both the application schema (contragate_app) and staging schema (contragate_staging).
+  # In production, these are separate Railway PostgreSQL instances.
+  contragate-db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: contragate
+      POSTGRES_PASSWORD: contragate_local
+      POSTGRES_DB: contragate
+    ports:
+      - "5432:5432"
+    volumes:
+      - contragate-db-data:/var/lib/postgresql/data
+      - ./seed/demo_schema.sql:/docker-entrypoint-initdb.d/01_demo_schema.sql:ro
+      - ./seed/staging_schema.sql:/docker-entrypoint-initdb.d/02_staging_schema.sql:ro
+      - ./seed/default_policies.sql:/docker-entrypoint-initdb.d/03_default_policies.sql:ro
+      - ./seed/historical_operations.sql:/docker-entrypoint-initdb.d/04_historical_operations.sql:ro
+      - ./seed/sandbox_trigger.sql:/docker-entrypoint-initdb.d/05_sandbox_trigger.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U contragate -d contragate"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── 2. contragate-mcp ────────────────────────────────────────────────────────
+  # All six MCP servers in a single container for local development.
+  # Ports: 8010 (postgres_reader), 8011 (transaction_sandbox), 8012 (memory_store),
+  #        8013 (audit_logger), 8014 (policy_store), 8015 (notifier-mcp)
+  contragate-mcp:
+    build:
+      context: .
+      dockerfile: mcp_servers/Dockerfile
+    environment:
+      <<: *common-env
+      POSTGRES_READER_PORT: "8010"
+      TRANSACTION_SANDBOX_PORT: "8011"
+      MEMORY_STORE_PORT: "8012"
+      AUDIT_LOGGER_PORT: "8013"
+      POLICY_STORE_PORT: "8014"
+    ports:
+      - "8010:8010"
+      - "8011:8011"
+      - "8012:8012"
+      - "8013:8013"
+      - "8014:8014"
+    depends_on:
+      contragate-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8010/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ── 3. contragate-orchestrator ───────────────────────────────────────────────
+  # LangGraph state machine. Receives workflow requests from proxy.
+  # Manages all agent invocations. Port 8001.
+  contragate-orchestrator:
+    build:
+      context: .
+      dockerfile: orchestrator/Dockerfile
+    environment:
+      <<: *common-env
+      <<: *mcp-urls
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CONTRAGATE_TIMEOUT_SECONDS: ${CONTRAGATE_TIMEOUT_SECONDS:-1800}
+      ORCHESTRATOR_PORT: "8001"
+      PROXY_CALLBACK_URL: http://contragate-proxy:8000/v1/decisions
+      UI_BASE_URL: http://localhost:3000
+    ports:
+      - "8001:8001"
+    depends_on:
+      contragate-mcp:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8001/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ── 4. contragate-agents ─────────────────────────────────────────────────────
+  # Three analytical agents (Phase 2: stubs only — real logic in Phase 3-5).
+  # Stateless per invocation — state flows through HandoffContract. Port 8002.
+  # Phase 2: this container is a health-check stub that returns 200.
+  contragate-agents:
+    image: python:3.12-slim
+    command: >
+      python -c "
+      import http.server, threading
+      class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+          self.send_response(200)
+          self.send_header('Content-Type','application/json')
+          self.end_headers()
+          self.wfile.write(b'{\"status\":\"ok\",\"phase\":\"2-stub\"}\n')
+        def log_message(self, *a): pass
+      s = http.server.HTTPServer(('0.0.0.0', 8002), H)
+      print('agents stub on :8002')
+      s.serve_forever()
+      "
+    ports:
+      - "8002:8002"
+    depends_on:
+      contragate-mcp:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8002/health || python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8002').read()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── 5. contragate-proxy ──────────────────────────────────────────────────────
+  # MCP proxy entry point. Tool call interception, async approval protocol,
+  # polling endpoints, SSE streams. Port 8000.
+  contragate-proxy:
+    build:
+      context: .
+      dockerfile: proxy/Dockerfile
+    environment:
+      <<: *common-env
+      <<: *mcp-urls
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      PROXY_PORT: "8000"
+      ORCHESTRATOR_URL: http://contragate-orchestrator:8001
+      CONTRAGATE_EXPLAIN_THRESHOLD: ${CONTRAGATE_EXPLAIN_THRESHOLD:-50000}
+      PROXY_CALLBACK_URL: http://contragate-proxy:8000/v1/decisions
+      UI_BASE_URL: http://localhost:3000
+      PROXY_BASE_URL: http://contragate-proxy:8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      contragate-orchestrator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── 6. contragate-notifier ───────────────────────────────────────────────────
+  # Local mock notifier. Prints approval requests to terminal.
+  # POST /dev/approve and POST /dev/reject for programmatic decisions.
+  # POST /dev/modify for modify-with-constraints. Port 8020.
+  contragate-notifier:
+    build:
+      context: .
+      dockerfile: mcp_servers/Dockerfile
+    command: ["python", "-m", "uvicorn", "mcp_servers.notifier.server:app", "--host", "0.0.0.0", "--port", "8020"]
+    environment:
+      <<: *common-env
+      USE_MOCK_NOTIFIER: "true"
+      NOTIFIER_PORT: "8020"
+      PROXY_CALLBACK_URL: http://contragate-proxy:8000/v1/decisions
+    ports:
+      - "8020:8020"
+    depends_on:
+      contragate-proxy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8020/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── 7. contragate-ui ─────────────────────────────────────────────────────────
+  # React approval UI. Serves on port 3000.
+  # Phase 2: placeholder — full UI is Phase 7.
+  contragate-ui:
+    image: nginx:alpine
+    volumes:
+      - ./ui/nginx-placeholder.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "3000:80"
+    depends_on:
+      contragate-proxy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:80 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  contragate-db-data:
+    driver: local

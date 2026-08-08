@@ -1,0 +1,86 @@
+[
+  {
+    "scenario_id": "del_001",
+    "description": "DELETE selective small (~100 rows), no soft-delete column, no PITR — PERMANENT",
+    "operation_type": "DELETE",
+    "table": "cg_departments",
+    "sql": "DELETE FROM cg_departments WHERE id = 42",
+    "condition": "id = 42",
+    "schema_fixture": "simple_fk",
+    "inputs": {
+      "has_soft_delete_column": false,
+      "pitr_confirmed": false,
+      "pitr_window_hours": null,
+      "estimated_rows": 1
+    },
+    "expected": {
+      "reversibility": "PERMANENT",
+      "reversibility_reason_contains": "no_recovery_path",
+      "has_permanent_side_effects": false,
+      "permanent_components_count_min": 1
+    }
+  },
+  {
+    "scenario_id": "del_002",
+    "description": "DELETE bulk >10k rows, no soft-delete, no PITR — high blast radius, PERMANENT",
+    "operation_type": "DELETE",
+    "table": "cg_orders",
+    "sql": "DELETE FROM cg_orders WHERE created_at < NOW() - INTERVAL '1 year'",
+    "condition": "created_at < NOW() - INTERVAL '1 year'",
+    "schema_fixture": "ecommerce",
+    "inputs": {
+      "has_soft_delete_column": false,
+      "pitr_confirmed": false,
+      "pitr_window_hours": null,
+      "estimated_rows": 15000
+    },
+    "expected": {
+      "reversibility": "PERMANENT",
+      "reversibility_reason_contains": "no_recovery_path",
+      "has_permanent_side_effects": false,
+      "permanent_components_count_min": 1
+    }
+  },
+  {
+    "scenario_id": "del_003",
+    "description": "DELETE on PII table, no soft-delete, PITR confirmed — REVERSIBLE_PITR",
+    "operation_type": "DELETE",
+    "table": "cg_customer_profiles",
+    "sql": "DELETE FROM cg_customer_profiles WHERE id = 7",
+    "condition": "id = 7",
+    "schema_fixture": "pii_tagged",
+    "inputs": {
+      "has_soft_delete_column": false,
+      "pitr_confirmed": true,
+      "pitr_window_hours": 168.0,
+      "estimated_rows": 1
+    },
+    "expected": {
+      "reversibility": "REVERSIBLE_PITR",
+      "pitr_available": true,
+      "has_permanent_side_effects": false,
+      "permanent_components_count_min": 0
+    }
+  },
+  {
+    "scenario_id": "del_004",
+    "description": "DELETE with soft-delete column (deleted_at IS NULL check) — REVERSIBLE_AUTOMATED",
+    "operation_type": "DELETE",
+    "table": "cg_users",
+    "sql": "DELETE FROM cg_users WHERE id = 5",
+    "condition": "id = 5",
+    "schema_fixture": "ecommerce",
+    "inputs": {
+      "has_soft_delete_column": true,
+      "pitr_confirmed": false,
+      "pitr_window_hours": null,
+      "estimated_rows": 1
+    },
+    "expected": {
+      "reversibility": "REVERSIBLE_AUTOMATED",
+      "reversibility_reason_contains": "soft-delete",
+      "has_permanent_side_effects": false,
+      "permanent_components_count_min": 0
+    }
+  }
+]

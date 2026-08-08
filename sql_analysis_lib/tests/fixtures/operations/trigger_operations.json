@@ -1,0 +1,83 @@
+[
+  {
+    "scenario_id": "trg_001",
+    "description": "DELETE on table with pg_net (net.http_post) trigger — external call is permanent, DB also permanent (no soft-delete) → PERMANENT",
+    "operation_type": "DELETE",
+    "table": "cg_customer_profiles",
+    "sql": "DELETE FROM cg_customer_profiles WHERE id = 1",
+    "condition": "id = 1",
+    "schema_fixture": "pii_tagged",
+    "trigger_scenario": "pg_net",
+    "inputs": {
+      "has_soft_delete_column": false,
+      "pitr_confirmed": false,
+      "pitr_window_hours": null,
+      "estimated_rows": 1,
+      "trigger_name": "cg_after_delete_notify",
+      "trigger_event": "DELETE",
+      "trigger_timing": "AFTER",
+      "trigger_invokes_non_transactional": true,
+      "trigger_non_transactional_extension": "pg_net"
+    },
+    "expected": {
+      "reversibility": "PERMANENT",
+      "has_permanent_side_effects": true,
+      "non_transactional_trigger_count": 1,
+      "trigger_extension": "pg_net"
+    }
+  },
+  {
+    "scenario_id": "trg_002",
+    "description": "DELETE on table with dblink trigger — external call is permanent, DB also no-recovery → PERMANENT",
+    "operation_type": "DELETE",
+    "table": "cg_orders",
+    "sql": "DELETE FROM cg_orders WHERE status = 'cancelled'",
+    "condition": "status = 'cancelled'",
+    "schema_fixture": "ecommerce",
+    "trigger_scenario": "dblink",
+    "inputs": {
+      "has_soft_delete_column": false,
+      "pitr_confirmed": false,
+      "pitr_window_hours": null,
+      "estimated_rows": 200,
+      "trigger_name": "cg_after_delete_sync",
+      "trigger_event": "DELETE",
+      "trigger_timing": "AFTER",
+      "trigger_invokes_non_transactional": true,
+      "trigger_non_transactional_extension": "dblink"
+    },
+    "expected": {
+      "reversibility": "PERMANENT",
+      "has_permanent_side_effects": true,
+      "non_transactional_trigger_count": 1,
+      "trigger_extension": "dblink"
+    }
+  },
+  {
+    "scenario_id": "trg_003",
+    "description": "UPDATE on cg_users (has deleted_at soft-delete) with pg_net trigger — DB=REVERSIBLE_AUTOMATED, trigger=PERMANENT → PARTIAL",
+    "operation_type": "UPDATE",
+    "table": "cg_users",
+    "sql": "UPDATE cg_users SET email = 'new@example.com' WHERE id = 1",
+    "condition": "id = 1",
+    "schema_fixture": "ecommerce",
+    "trigger_scenario": "pg_net",
+    "inputs": {
+      "has_soft_delete_column": true,
+      "pitr_confirmed": false,
+      "pitr_window_hours": null,
+      "estimated_rows": 1,
+      "trigger_name": "cg_after_update_webhook",
+      "trigger_event": "UPDATE",
+      "trigger_timing": "AFTER",
+      "trigger_invokes_non_transactional": true,
+      "trigger_non_transactional_extension": "pg_net"
+    },
+    "expected": {
+      "reversibility": "PARTIAL",
+      "has_permanent_side_effects": true,
+      "non_transactional_trigger_count": 1,
+      "trigger_extension": "pg_net"
+    }
+  }
+]

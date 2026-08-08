@@ -1,0 +1,68 @@
+{
+  "name": "policy-store",
+  "version": "0.2.0",
+  "description": "Read-only policy rule engine. Deterministic evaluation of 8 default rules — no LLM involved. Write access via admin tools only.",
+  "port": 8014,
+  "tools": [
+    {
+      "name": "get_active_policies",
+      "description": "Return all active policy rules for a tenant.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "tenant_id": { "type": "string" } },
+        "required": ["tenant_id"]
+      }
+    },
+    {
+      "name": "is_pii_table",
+      "description": "Check if a table is registered as PII for the given tenant.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "table": { "type": "string" },
+          "tenant_id": { "type": "string" }
+        },
+        "required": ["table", "tenant_id"]
+      }
+    },
+    {
+      "name": "get_threshold",
+      "description": "Return a configurable threshold value by key.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string" },
+          "tenant_id": { "type": "string" }
+        },
+        "required": ["key", "tenant_id"]
+      }
+    },
+    {
+      "name": "get_non_transactional_extensions",
+      "description": "Return extensions classified as non-transactional (pg_net, dblink, etc.).",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "tenant_id": { "type": "string" } },
+        "required": ["tenant_id"]
+      }
+    },
+    {
+      "name": "evaluate_rules",
+      "description": "Evaluate operation against all active policy rules. Deterministic — no LLM. Returns triggered rules and recommended action.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "operation_type": { "type": "string" },
+          "tables": { "type": "array", "items": { "type": "string" } },
+          "estimated_rows": { "type": "integer" },
+          "source_type": { "type": "string" },
+          "has_external_triggers": { "type": "boolean" },
+          "submission_hour": { "type": "integer" },
+          "tenant_id": { "type": "string" },
+          "explain_cost": { "type": "number" }
+        },
+        "required": ["operation_type", "tables", "estimated_rows", "source_type", "tenant_id"]
+      }
+    }
+  ]
+}

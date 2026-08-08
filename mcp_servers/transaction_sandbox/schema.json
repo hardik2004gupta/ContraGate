@@ -1,0 +1,65 @@
+{
+  "name": "transaction-sandbox",
+  "version": "0.2.0",
+  "description": "Writable staging database sandbox. Always rolls back — production data never modified. SET LOCAL app.sandbox_mode = true on every connection.",
+  "port": 8011,
+  "security": {
+    "target": "staging database only",
+    "network_egress": "blocked at infrastructure level",
+    "always_rollback": true
+  },
+  "tools": [
+    {
+      "name": "begin_sandbox",
+      "description": "Open an explicit BEGIN transaction on the staging database. Returns a session_id for subsequent calls.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "tenant_id": { "type": "string" } },
+        "required": ["tenant_id"]
+      }
+    },
+    {
+      "name": "execute_in_sandbox",
+      "description": "Execute SQL inside the open sandbox transaction. Statement timeout is enforced at 5000ms.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": { "type": "string" },
+          "sql": { "type": "string" }
+        },
+        "required": ["session_id", "sql"]
+      }
+    },
+    {
+      "name": "capture_diff",
+      "description": "Capture row counts for a list of tables before or after execution.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": { "type": "string" },
+          "tables": { "type": "array", "items": { "type": "string" } },
+          "phase": { "type": "string", "enum": ["pre", "post"] }
+        },
+        "required": ["session_id", "tables", "phase"]
+      }
+    },
+    {
+      "name": "get_trigger_log",
+      "description": "Read sandbox_trigger_log entries for this session.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "session_id": { "type": "string" } },
+        "required": ["session_id"]
+      }
+    },
+    {
+      "name": "rollback_sandbox",
+      "description": "ROLLBACK the sandbox transaction and close the connection. Always called — even on error.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "session_id": { "type": "string" } },
+        "required": ["session_id"]
+      }
+    }
+  ]
+}
