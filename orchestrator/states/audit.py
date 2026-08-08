@@ -164,17 +164,46 @@ def _extract_tables(contract: HandoffContract) -> list[str]:
 
 def _trigger_feedback_loop_stub(contract: HandoffContract) -> None:
     """
-    Phase 2 stub: triggers post-execution feedback loop.
-    Phase 8 implementation will: query actual row count, compute accuracy delta,
-    adjust confidence scores in memory store.
+    Post-execution feedback loop (CLAUDE.md §21).
+
+    Computes blast radius accuracy delta and adjusts confidence scores:
+      - Underestimate (actual > estimated, |delta| > 10%): lower confidence by 0.05
+      - Overestimate (actual < estimated, |delta| > 10%): lower confidence by 0.02
+    Both directions are penalized because they indicate stale or inaccurate statistics.
+    The confidence adjustment is stored on the contract; the memory store write-back
+    in run_audit() will persist it for future operations on the same table.
     """
-    if contract.actual_primary_rows is not None and contract.estimated_primary_rows > 0:
-        actual = contract.actual_primary_rows
-        estimated = contract.estimated_primary_rows
-        delta = (actual - estimated) / estimated
-        contract.blast_radius_accuracy_delta = round(delta, 4)
-        if abs(delta) > 0.1:
-            logger.info(
-                "Feedback loop (stub): blast radius delta %.1f%% for %s on %s",
-                delta * 100, contract.operation_id, contract.primary_table,
-            )
+    if contract.actual_primary_rows is None or contract.estimated_primary_rows <= 0:
+        return
+
+    actual = contract.actual_primary_rows
+    estimated = contract.estimated_primary_rows
+    delta = (actual - estimated) / estimated
+    contract.blast_radius_accuracy_delta = round(delta, 4)
+
+    if abs(delta) <= 0.1:
+        return
+
+    current_confidence = contract.row_confidence if contract.row_confidence is not None else 0.8
+
+    if delta > 0:
+        # Underestimate — more severe, misleads approvers toward smaller-seeming ops
+        adjustment = -0.05
+        direction = "underestimate"
+    else:
+        # Overestimate — less severe
+        adjustment = -0.02
+        direction = "overestimate"
+
+    new_confidence = max(0.0, min(1.0, round(current_confidence + adjustment, 3)))
+    contract.row_confidence = new_confidence
+
+    logger.info(
+        "Feedback loop: blast radius delta %.1f%% (%s) for %s on %s — confidence %.2f → %.2f",
+        delta * 100,
+        direction,
+        contract.operation_id,
+        contract.primary_table,
+        current_confidence,
+        new_confidence,
+    )

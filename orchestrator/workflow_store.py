@@ -136,6 +136,20 @@ class WorkflowStore:
             for q in subs:
                 await q.put(event)
 
+    async def list_pending(self) -> list[WorkflowRecord]:
+        """Return all records currently awaiting human review, sorted by created_at ascending."""
+        async with self._lock:
+            return sorted(
+                [r for r in self._store.values() if r.status == WorkflowStatus.PENDING_HUMAN_APPROVAL],
+                key=lambda r: r.created_at,
+            )
+
+    async def list_all(self, limit: int = 200) -> list[WorkflowRecord]:
+        """Return all records sorted by created_at descending (newest first)."""
+        async with self._lock:
+            records = sorted(self._store.values(), key=lambda r: r.created_at, reverse=True)
+            return records[:limit]
+
     async def record_decision(
         self,
         approval_id: str,

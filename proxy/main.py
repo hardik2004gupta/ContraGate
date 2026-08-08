@@ -42,6 +42,7 @@ from orchestrator.graph import run_workflow
 from orchestrator.workflow_store import WorkflowStatus, workflow_store
 from proxy.async_protocol import build_pending_response, router as approval_router
 from proxy.interceptor import InterceptionError, intercept
+from proxy.webhook_handler import router as webhook_router
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -75,6 +76,7 @@ app.add_middleware(
 )
 
 app.include_router(approval_router)
+app.include_router(webhook_router)
 
 
 @app.get("/health")
