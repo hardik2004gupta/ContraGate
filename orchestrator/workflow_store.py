@@ -166,6 +166,7 @@ class WorkflowStore:
                 "APPROVE": AS.APPROVED,
                 "REJECT": AS.REJECTED,
                 "MODIFY": AS.MODIFIED,
+                "REQUEST_PREREQUISITE": AS.REJECTED,
             }
             record.contract.approval_state = decision_map.get(decision, AS.REJECTED)
             record.contract.human_decision = decision
