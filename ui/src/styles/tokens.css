@@ -1,0 +1,122 @@
+/* ═══════════════════════════════════════════════════════════════════
+   ContraGate Design System — Tokens
+   All CSS custom properties. Import this first.
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+
+  /* ── BACKGROUNDS ─────────────────────────────────────────────────── */
+  --bg-base:      #07090C;
+  --bg-surface:   #0B0E12;
+  --bg-elevated:  #10141A;
+
+  /* ── SURFACES (layered depth) ────────────────────────────────────── */
+  --surface-0:    #0B0E12;
+  --surface-1:    #0E1218;
+  --surface-2:    #11161D;
+  --surface-3:    #151B23;
+  --surface-4:    #1A2029;
+  --surface-5:    #1F2733;
+
+  /* ── BORDERS ─────────────────────────────────────────────────────── */
+  --border-0: rgba(255,255,255,0.04);
+  --border-1: rgba(255,255,255,0.07);
+  --border-2: rgba(255,255,255,0.11);
+  --border-3: rgba(255,255,255,0.18);
+  --border-4: rgba(255,255,255,0.28);
+
+  /* ── TEXT ────────────────────────────────────────────────────────── */
+  --text-0: rgba(255,255,255,0.94);
+  --text-1: rgba(255,255,255,0.68);
+  --text-2: rgba(255,255,255,0.44);
+  --text-3: rgba(255,255,255,0.26);
+  --text-4: rgba(255,255,255,0.14);
+
+  /* ── ACCENT: Electric Violet ─────────────────────────────────────── */
+  --violet:        #8B5CF6;
+  --violet-light:  #A78BFA;
+  --violet-dim:    rgba(139,92,246,0.12);
+  --violet-border: rgba(139,92,246,0.30);
+  --violet-glow:   rgba(139,92,246,0.22);
+
+  /* ── CYAN (secondary accent) ─────────────────────────────────────── */
+  --cyan:        #22D3EE;
+  --cyan-dim:    rgba(34,211,238,0.10);
+  --cyan-border: rgba(34,211,238,0.25);
+
+  /* ── SEMANTIC: Green ─────────────────────────────────────────────── */
+  --green:        #10B981;
+  --green-light:  #34D399;
+  --green-dim:    rgba(16,185,129,0.12);
+  --green-border: rgba(16,185,129,0.28);
+
+  /* ── SEMANTIC: Amber ─────────────────────────────────────────────── */
+  --amber:        #F59E0B;
+  --amber-light:  #FCD34D;
+  --amber-dim:    rgba(245,158,11,0.12);
+  --amber-border: rgba(245,158,11,0.28);
+
+  /* ── SEMANTIC: Red ───────────────────────────────────────────────── */
+  --red:        #EF4444;
+  --red-light:  #F87171;
+  --red-dim:    rgba(239,68,68,0.12);
+  --red-border: rgba(239,68,68,0.28);
+
+  /* ── SEMANTIC: Purple (permanent / AI / analysis) ────────────────── */
+  --purple:        #A855F7;
+  --purple-light:  #C084FC;
+  --purple-dim:    rgba(168,85,247,0.15);
+  --purple-border: rgba(168,85,247,0.32);
+
+  /* ── SEMANTIC: Blue (info / modified) ───────────────────────────── */
+  --blue:        #3B82F6;
+  --blue-light:  #60A5FA;
+  --blue-dim:    rgba(59,130,246,0.12);
+  --blue-border: rgba(59,130,246,0.28);
+
+  /* ── SPACING ─────────────────────────────────────────────────────── */
+  --s1:  4px;
+  --s2:  8px;
+  --s3:  12px;
+  --s4:  16px;
+  --s5:  20px;
+  --s6:  24px;
+  --s8:  32px;
+  --s10: 40px;
+  --s12: 48px;
+  --s16: 64px;
+
+  /* ── RADIUS ──────────────────────────────────────────────────────── */
+  --r-xs: 3px;
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 9px;
+  --r-xl: 12px;
+
+  /* ── TYPOGRAPHY ──────────────────────────────────────────────────── */
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter",
+          Roboto, Helvetica, Arial, sans-serif;
+  --mono: "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono",
+          Menlo, Consolas, "Courier New", monospace;
+
+  /* ── SHADOWS ─────────────────────────────────────────────────────── */
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.40);
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.50), 0 1px 2px rgba(0,0,0,0.40);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.40);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,0.65), 0 4px 8px rgba(0,0,0,0.50);
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,0.05);
+
+  /* ── TRANSITIONS ─────────────────────────────────────────────────── */
+  --t-1: 120ms ease-out;
+  --t-2: 180ms ease-out;
+  --t-3: 240ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ── Z-INDEX ─────────────────────────────────────────────────────── */
+  --z-sidebar: 100;
+  --z-topbar:  90;
+  --z-modal:   200;
+  --z-tooltip: 300;
+
+  /* ── LAYOUT ──────────────────────────────────────────────────────── */
+  --sidebar-w: 220px;
+}

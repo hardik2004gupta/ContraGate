@@ -264,10 +264,24 @@ class WorkflowStore:
         await self._notify_subscribers(approval_id)
 
     async def update_contract(self, approval_id: str, contract: HandoffContract) -> None:
+        # Preserve any terminal human decision that arrived while the pipeline was
+        # still running. A terminal decision (APPROVED / REJECTED / TIMED_OUT) is
+        # never overwritten by pipeline state. MODIFIED is intentionally NOT
+        # preserved so that HUMAN_REVIEW re-entry after a MODIFY can reset it to
+        # PENDING for the next round.
+        _terminal = {ApprovalState.APPROVED, ApprovalState.REJECTED, ApprovalState.TIMED_OUT}
         record = None
         async with self._lock:
             record = self._store.get(approval_id)
             if record:
+                existing = record.contract
+                if existing.approval_state in _terminal:
+                    contract.approval_state = existing.approval_state
+                    contract.human_decision = existing.human_decision
+                    contract.decision_reason = existing.decision_reason
+                    contract.decision_timestamp = existing.decision_timestamp
+                    contract.approver_id = existing.approver_id
+                    contract.modification_constraints = existing.modification_constraints
                 record.contract = contract
                 record.updated_at = datetime.now(timezone.utc)
         if record:

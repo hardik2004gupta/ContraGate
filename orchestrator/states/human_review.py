@@ -91,21 +91,56 @@ async def run_human_review(contract: HandoffContract) -> HandoffContract:
     # returns this record in the approval queue.
     from orchestrator.workflow_store import WorkflowStatus, workflow_store
 
-    await workflow_store.update_contract(op_id, contract)
-    await workflow_store.update_status(op_id, WorkflowStatus.PENDING_HUMAN_APPROVAL)
-
-    # ── Poll for human decision ──────────────────────────────────────────────
-    # The workflow store is updated by the proxy when the notifier posts a callback.
-    # We poll it here at POLL_INTERVAL_SECONDS until a decision arrives or timeout.
-
-    # Reset approval_state to PENDING when re-entering HUMAN_REVIEW after MODIFY.
+    # ── Re-entry after MODIFY: reset approval_state to PENDING ───────────────
     # Without this the poll loop immediately finds approval_state=MODIFIED, breaks,
-    # and routes back to analysis — creating an infinite loop. Persisting the reset
-    # also allows record_decision() to accept the new approval decision.
+    # and routes back to analysis — creating an infinite loop.
     if contract.approval_state == ApprovalState.MODIFIED:
         contract.approval_state = ApprovalState.PENDING
         await workflow_store.update_contract(op_id, contract)
         await workflow_store.update_status(op_id, WorkflowStatus.PENDING_HUMAN_APPROVAL)
+    else:
+        # ── First entry: guard against pre-recorded decisions (race condition) ─
+        # The proxy's /v1/decisions endpoint accepts decisions at any time, even
+        # while the pipeline is still in ANALYSIS or CONTRACT state. If a human
+        # decision arrived before we reached HUMAN_REVIEW, honor it rather than
+        # overwriting the stored contract (and resetting approval_state to PENDING).
+        current = await workflow_store.get(op_id)
+        if current is not None and current.contract.approval_state != ApprovalState.PENDING:
+            # Pre-recorded decision: merge analysis results in, preserve decision.
+            pre_state = current.contract.approval_state
+            contract.approval_state = pre_state
+            contract.human_decision = current.contract.human_decision
+            contract.decision_reason = current.contract.decision_reason
+            contract.decision_timestamp = current.contract.decision_timestamp
+            contract.approver_id = current.contract.approver_id
+            contract.modification_constraints = current.contract.modification_constraints
+            await workflow_store.update_contract(op_id, contract)
+            _pre_status_map = {
+                ApprovalState.APPROVED: WorkflowStatus.APPROVED,
+                ApprovalState.REJECTED: WorkflowStatus.REJECTED,
+                ApprovalState.TIMED_OUT: WorkflowStatus.TIMED_OUT,
+                ApprovalState.MODIFIED: WorkflowStatus.RUNNING,
+            }
+            await workflow_store.update_status(
+                op_id, _pre_status_map.get(pre_state, WorkflowStatus.REJECTED)
+            )
+            contract.add_provenance(
+                agent="HUMAN_REVIEW",
+                field_written="approval_state,human_decision,decision_reason,decision_timestamp",
+                llm_involved=False,
+            )
+            logger.info(
+                "HUMAN_REVIEW: pre-recorded decision honored (race condition resolved)",
+                extra={"operation_id": op_id, "decision": pre_state.value},
+            )
+            return contract
+        # Normal first entry: persist full contract and set pending.
+        await workflow_store.update_contract(op_id, contract)
+        await workflow_store.update_status(op_id, WorkflowStatus.PENDING_HUMAN_APPROVAL)
+
+    # ── Poll for human decision ──────────────────────────────────────────────
+    # The workflow store is updated by the proxy when the notifier posts a callback.
+    # We poll it here at POLL_INTERVAL_SECONDS until a decision arrives or timeout.
 
     deadline = start.timestamp() + REVIEW_TIMEOUT_SECONDS
 

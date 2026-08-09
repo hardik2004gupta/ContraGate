@@ -1,89 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { OutcomeBadge } from '../App.jsx'
-
-const auditStyles = `
-  .audit-table-wrap { overflow-x: auto; }
-
-  .audit-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-    min-width: 800px;
-  }
-
-  .audit-table th {
-    text-align: left;
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-tertiary);
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--border);
-    white-space: nowrap;
-    background: var(--surface);
-    position: sticky;
-    top: 0;
-  }
-
-  .audit-table td {
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--border);
-    vertical-align: top;
-    color: var(--text-primary);
-  }
-
-  .audit-table tr:last-child td { border-bottom: none; }
-  .audit-table tr:hover td { background: var(--surface-2); }
-
-  .audit-intent {
-    max-width: 240px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 12px;
-  }
-
-  .audit-reason {
-    max-width: 200px;
-    font-size: 11px;
-    color: var(--text-secondary);
-    font-style: italic;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .delta-positive { color: var(--warning); font-weight: 600; }
-  .delta-negative { color: var(--info); }
-  .delta-zero { color: var(--text-tertiary); }
-  .delta-large { color: var(--danger); font-weight: 700; }
-
-  .audit-stats {
-    display: flex;
-    gap: 20px;
-    padding: 12px 16px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-  }
-
-  .audit-stat { display: flex; flex-direction: column; gap: 2px; }
-  .audit-stat-value { font-size: 20px; font-weight: 700; font-family: var(--mono); color: var(--text-primary); }
-  .audit-stat-label { font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.4px; }
-`
+import { OutcomeBadge } from '../components/shared/Badge.jsx'
 
 function formatDelta(delta) {
-  if (delta == null) return { text: '—', cls: 'delta-zero' }
+  if (delta == null) return { text: '—', color: 'var(--text-3)' }
   const pct = delta * 100
   const abs = Math.abs(pct)
   const text = `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`
-  if (abs > 50) return { text, cls: 'delta-large' }
-  if (abs > 10 && pct > 0) return { text, cls: 'delta-positive' }
-  if (abs > 10) return { text, cls: 'delta-negative' }
-  return { text, cls: 'delta-zero' }
+  if (abs > 50) return { text, color: 'var(--red)', weight: '700' }
+  if (abs > 10 && pct > 0) return { text, color: 'var(--amber)', weight: '600' }
+  if (abs > 10) return { text, color: 'var(--blue)', weight: '600' }
+  return { text, color: 'var(--text-3)' }
 }
 
 function formatDate(iso) {
@@ -96,7 +22,7 @@ function formatDate(iso) {
   } catch (_) { return iso }
 }
 
-function formatNumber(n) {
+function fmtNum(n) {
   if (n == null) return '—'
   return Number(n).toLocaleString()
 }
@@ -126,7 +52,6 @@ export default function AuditLog() {
     return () => clearInterval(t)
   }, [fetchAudit])
 
-  // Compute stats
   const total = records.length
   const approved = records.filter(r => r.outcome === 'APPROVED_EXECUTED').length
   const rejected = records.filter(r => ['REJECTED', 'AUTO_REJECTED'].includes(r.outcome)).length
@@ -134,7 +59,6 @@ export default function AuditLog() {
 
   return (
     <>
-      <style>{auditStyles}</style>
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
@@ -142,9 +66,19 @@ export default function AuditLog() {
             <div className="page-subtitle">Completed operations with outcomes and blast radius accuracy</div>
           </div>
           <button
-            className="btn btn-modify btn-sm"
             onClick={fetchAudit}
-            style={{ fontWeight: 500 }}
+            style={{
+              background: 'var(--surface-2)',
+              border: '1px solid var(--border-1)',
+              borderRadius: 'var(--r-sm)',
+              color: 'var(--text-2)',
+              fontSize: '12px',
+              fontWeight: '600',
+              padding: '7px 14px',
+              cursor: 'pointer',
+              fontFamily: 'var(--font)',
+              transition: 'background var(--t-1)',
+            }}
           >
             ↻ Refresh
           </button>
@@ -152,44 +86,53 @@ export default function AuditLog() {
       </div>
 
       <div className="page-body">
-        {error && <div className="error-banner" style={{ marginBottom: 16 }}>⚠ {error}</div>}
+        {error && <div className="error-banner" style={{ marginBottom: '16px' }}>⚠ {error}</div>}
 
         {loading ? (
-          <div className="loading-center"><div className="spinner" /> Loading audit records…</div>
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: '10px', padding: '48px', color: 'var(--text-3)', fontSize: '13px',
+          }}>
+            <span className="spinner" /> Loading audit records…
+          </div>
         ) : records.length === 0 ? (
-          <div className="card">
-            <div className="empty-state">
-              <div className="empty-state-icon">📋</div>
-              <div className="empty-state-title">No audit records yet</div>
-              <div className="empty-state-desc">Operations will appear here after they complete review.</div>
-            </div>
+          <div className="empty-state">
+            <div style={{ fontSize: '28px', opacity: 0.4 }}>📋</div>
+            <div className="empty-state-title">No audit records yet</div>
+            <div className="empty-state-desc">Operations will appear here after they complete review.</div>
           </div>
         ) : (
           <>
-            <div className="audit-stats">
-              <div className="audit-stat">
-                <span className="audit-stat-value">{total}</span>
-                <span className="audit-stat-label">Total operations</span>
+            {/* Stats row */}
+            <div className="stat-strip" style={{ marginBottom: '20px' }}>
+              <div className="stat-chip">
+                <span className="stat-chip-value">{total}</span>
+                <span style={{ color: 'var(--text-3)' }}>total</span>
               </div>
-              <div className="audit-stat">
-                <span className="audit-stat-value" style={{ color: 'var(--auto)' }}>{approved}</span>
-                <span className="audit-stat-label">Approved &amp; executed</span>
+              <div className="stat-chip">
+                <span className="stat-chip-value" style={{ color: 'var(--green)' }}>{approved}</span>
+                <span style={{ color: 'var(--text-3)' }}>approved</span>
               </div>
-              <div className="audit-stat">
-                <span className="audit-stat-value" style={{ color: 'var(--danger)' }}>{rejected}</span>
-                <span className="audit-stat-label">Rejected</span>
+              <div className="stat-chip">
+                <span className="stat-chip-value" style={{ color: 'var(--red)' }}>{rejected}</span>
+                <span style={{ color: 'var(--text-3)' }}>rejected</span>
               </div>
               {highDelta > 0 && (
-                <div className="audit-stat">
-                  <span className="audit-stat-value" style={{ color: 'var(--warning)' }}>{highDelta}</span>
-                  <span className="audit-stat-label">High delta (&gt;20%)</span>
+                <div className="stat-chip">
+                  <span className="stat-chip-value" style={{ color: 'var(--amber)' }}>{highDelta}</span>
+                  <span style={{ color: 'var(--text-3)' }}>high Δ (&gt;20%)</span>
                 </div>
               )}
             </div>
 
-            <div className="card">
-              <div className="audit-table-wrap">
-                <table className="audit-table">
+            <div style={{
+              background: 'var(--surface-1)',
+              border: '1px solid var(--border-1)',
+              borderRadius: 'var(--r-lg)',
+              overflow: 'hidden',
+            }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="data-table" style={{ minWidth: '820px' }}>
                   <thead>
                     <tr>
                       <th>Outcome</th>
@@ -197,7 +140,7 @@ export default function AuditLog() {
                       <th>Table</th>
                       <th>Type</th>
                       <th>Est. Rows</th>
-                      <th>Actual Rows</th>
+                      <th>Actual</th>
                       <th>Δ Accuracy</th>
                       <th>Reason</th>
                       <th>Timestamp</th>
@@ -205,27 +148,60 @@ export default function AuditLog() {
                   </thead>
                   <tbody>
                     {records.map(r => {
-                      const { text: deltaText, cls: deltaCls } = formatDelta(r.blast_radius_delta)
+                      const { text: deltaText, color: deltaColor, weight: deltaWeight } = formatDelta(r.blast_radius_delta)
                       return (
                         <tr key={r.operation_id}>
                           <td><OutcomeBadge outcome={r.outcome} /></td>
                           <td>
-                            <div className="audit-intent" title={r.intent_summary || r.operation_id}>
+                            <div style={{
+                              maxWidth: '200px',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontSize: '12px',
+                              color: 'var(--text-1)',
+                              marginBottom: '2px',
+                            }} title={r.intent_summary || r.operation_id}>
                               {r.intent_summary || r.operation_id}
                             </div>
-                            <div className="mono text-xs text-secondary">{r.operation_id}</div>
+                            <div style={{ fontSize: '10px', fontFamily: 'var(--mono)', color: 'var(--text-3)' }}>
+                              {r.operation_id}
+                            </div>
                           </td>
-                          <td className="mono text-sm">{r.primary_table || '—'}</td>
-                          <td className="mono text-sm">{r.operation_type || '—'}</td>
-                          <td className="mono text-sm">{formatNumber(r.estimated_rows)}</td>
-                          <td className="mono text-sm">{formatNumber(r.actual_rows)}</td>
-                          <td className={`mono text-sm ${deltaCls}`}>{deltaText}</td>
                           <td>
-                            <div className="audit-reason" title={r.decision_reason}>
+                            <span className="mono-tag">{r.primary_table || '—'}</span>
+                          </td>
+                          <td style={{ fontFamily: 'var(--mono)', fontSize: '12px', color: 'var(--text-2)' }}>
+                            {r.operation_type || '—'}
+                          </td>
+                          <td style={{ fontFamily: 'var(--mono)', fontSize: '12px', color: 'var(--text-1)' }}>
+                            {fmtNum(r.estimated_rows)}
+                          </td>
+                          <td style={{ fontFamily: 'var(--mono)', fontSize: '12px', color: 'var(--cyan)' }}>
+                            {fmtNum(r.actual_rows)}
+                          </td>
+                          <td style={{
+                            fontFamily: 'var(--mono)',
+                            fontSize: '12px',
+                            color: deltaColor,
+                            fontWeight: deltaWeight || '400',
+                          }}>
+                            {deltaText}
+                          </td>
+                          <td>
+                            <div style={{
+                              maxWidth: '180px',
+                              fontSize: '11px',
+                              color: 'var(--text-2)',
+                              fontStyle: 'italic',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }} title={r.decision_reason}>
                               {r.decision_reason || '—'}
                             </div>
                           </td>
-                          <td className="text-xs text-secondary" style={{ whiteSpace: 'nowrap' }}>
+                          <td style={{ fontSize: '11px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>
                             {formatDate(r.updated_at)}
                           </td>
                         </tr>

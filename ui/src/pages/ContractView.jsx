@@ -1,228 +1,28 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { RiskTierBadge } from '../App.jsx'
-import ContractSection from '../components/ContractSection.jsx'
-import DecisionPanel from '../components/DecisionPanel.jsx'
-import HistoricalCard from '../components/HistoricalCard.jsx'
-import SystemFlags from '../components/SystemFlags.jsx'
+import { RiskTierBadge, ReversibilityBadge } from '../components/shared/Badge.jsx'
+import ContractSection from '../components/contract/ContractSection.jsx'
+import OperationSection from '../components/contract/OperationSection.jsx'
+import BlastRadiusSection from '../components/contract/BlastRadiusSection.jsx'
+import ReversibilitySection from '../components/contract/ReversibilitySection.jsx'
+import SandboxSection from '../components/contract/SandboxSection.jsx'
+import PrecedentsSection from '../components/contract/PrecedentsSection.jsx'
+import FlagsSection from '../components/contract/FlagsSection.jsx'
+import DecisionPanel from '../components/decision/DecisionPanel.jsx'
+import { ContractSkeleton } from '../components/shared/Skeleton.jsx'
 import { useApprovalPolling } from '../hooks/useApprovalPolling.js'
 
-const contractStyles = `
-  .contract-layout {
-    display: grid;
-    grid-template-columns: 1fr 300px;
-    gap: 20px;
-    align-items: start;
-  }
-
-  .contract-sections { display: flex; flex-direction: column; gap: 14px; }
-
-  .contract-sidebar {
-    position: sticky;
-    top: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-
-  .contract-header-bar {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 16px 18px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-bottom: 0;
-  }
-
-  .contract-header-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .contract-header-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .contract-op-id { font-family: var(--mono); font-size: 11px; color: var(--text-tertiary); }
-  .contract-intent { font-size: 15px; font-weight: 600; color: var(--text-primary); line-height: 1.4; }
-
-  .impact-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .impact-table th {
-    text-align: left; font-size: 10px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.5px;
-    color: var(--text-tertiary); padding: 6px 8px;
-    border-bottom: 1px solid var(--border);
-  }
-  .impact-table td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
-  .impact-table tr:last-child td { border-bottom: none; }
-  .impact-table .primary-row td { font-weight: 600; }
-
-  .cascade-type {
-    font-size: 11px; padding: 1px 6px; border-radius: 3px;
-    background: var(--surface-2); color: var(--text-secondary); font-family: var(--mono);
-  }
-
-  .total-row {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 10px 8px; background: var(--surface-2);
-    border-radius: var(--radius-sm); margin-top: 10px;
-    font-size: 13px; font-weight: 700;
-  }
-  .total-row-count { font-family: var(--mono); font-size: 15px; color: var(--text-primary); }
-
-  .reversibility-card { border-radius: var(--radius-sm); padding: 12px 14px; font-size: 13px; }
-  .rev-permanent { background: var(--permanent-bg); border: 1px solid #C4B5FD; }
-  .rev-partial { background: var(--standard-bg); border: 1px solid #FDE68A; }
-  .rev-reversible { background: var(--approved-bg); border: 1px solid #6EE7B7; }
-  .rev-label { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
-  .rev-permanent .rev-label { color: var(--permanent); }
-  .rev-partial .rev-label { color: var(--warning); }
-  .rev-reversible .rev-label { color: var(--auto); }
-
-  .external-trigger-item {
-    display: flex; align-items: flex-start; gap: 8px;
-    padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px;
-  }
-  .external-trigger-item:last-child { border-bottom: none; }
-  .external-trigger-badge {
-    background: #FEF3C7; border: 1px solid #FDE68A; border-radius: 3px;
-    padding: 1px 6px; font-size: 11px; font-weight: 600;
-    color: #78350F; flex-shrink: 0; margin-top: 1px;
-  }
-
-  .back-link {
-    display: inline-flex; align-items: center; gap: 4px;
-    font-size: 12px; color: var(--text-secondary); cursor: pointer;
-    background: none; border: none; padding: 0; font-family: var(--font);
-    margin-bottom: 12px;
-  }
-  .back-link:hover { color: var(--text-primary); }
-
-  .status-banner {
-    padding: 12px 14px; border-radius: var(--radius-sm);
-    font-size: 13px; font-weight: 600;
-    display: flex; align-items: center; gap: 8px;
-    margin-bottom: 20px;
-  }
-  .status-banner.approved { background: var(--approved-bg); color: #065F46; }
-  .status-banner.rejected { background: var(--rejected-bg); color: #7F1D1D; }
-
-  @media (max-width: 900px) {
-    .contract-layout { grid-template-columns: 1fr; }
-    .contract-sidebar { position: static; }
-  }
-`
-
-function reversilityClass(rev) {
-  if (rev === 'PERMANENT') return 'rev-permanent'
-  if (rev === 'PARTIAL') return 'rev-partial'
-  return 'rev-reversible'
-}
-
-function reversilityEmoji(rev) {
-  if (rev === 'PERMANENT') return '🔴'
-  if (rev === 'PARTIAL') return '🟡'
-  return '🟢'
-}
-
-function formatNumber(n) {
-  if (n == null) return '—'
-  return Number(n).toLocaleString()
-}
-
-function SectionImpact({ contract }) {
-  const cascade = contract.cascade || []
-  const primaryRows = contract.estimated_primary_rows ?? 0
-  const actualRows = contract.actual_primary_rows ?? null
-  const totalRows = contract.blast_radius?.total_rows ??
-    (primaryRows + cascade.reduce((s, c) => s + (c.estimated_rows ?? 0), 0))
-  const externalTriggers = contract.blast_radius?.external_triggers || []
-
-  return (
-    <div>
-      <div className="sql-block" style={{ marginBottom: 14 }}>{contract.raw_sql}</div>
-      <table className="impact-table">
-        <thead>
-          <tr>
-            <th>Table</th><th>Estimated</th><th>Actual (simulation)</th><th>Type</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr className="primary-row">
-            <td>{contract.primary_table || '—'}</td>
-            <td className="mono">{formatNumber(primaryRows)}</td>
-            <td className="mono">{actualRows != null ? formatNumber(actualRows) : '—'}</td>
-            <td><span className="cascade-type">PRIMARY</span></td>
-          </tr>
-          {cascade.map((c, i) => (
-            <tr key={i}>
-              <td>{c.table}</td>
-              <td className="mono">{formatNumber(c.estimated_rows)}</td>
-              <td className="mono">{c.actual_rows != null ? formatNumber(c.actual_rows) : '—'}</td>
-              <td><span className="cascade-type">{c.cascade_type || 'CASCADE'}</span></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="total-row">
-        <span>Total rows affected across all tables</span>
-        <span className="total-row-count">{formatNumber(totalRows)}</span>
-      </div>
-      {externalTriggers.length > 0 && (
-        <div style={{ marginTop: 14 }}>
-          <div className="text-sm font-semibold" style={{ marginBottom: 8, color: 'var(--text-secondary)' }}>
-            External actions that will fire ({externalTriggers.length}):
-          </div>
-          {externalTriggers.map((t, i) => (
-            <div key={i} className="external-trigger-item">
-              <span className="external-trigger-badge">TRIGGER</span>
-              <span>{t.trigger_name || t.name || JSON.stringify(t)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function SectionReversibility({ contract }) {
-  const rev = contract.reversibility
-  const revReason = contract.reversibility_reason
-  const rollback = contract.rollback_plan
-
-  return (
-    <div>
-      <div className={`reversibility-card ${reversilityClass(rev)}`}>
-        <div className="rev-label">{reversilityEmoji(rev)} {rev || 'UNKNOWN'}</div>
-        {revReason && <div style={{ marginTop: 4, lineHeight: 1.5 }}>{revReason}</div>}
-      </div>
-      {rollback && (
-        <div style={{ marginTop: 12 }}>
-          <div className="text-sm font-semibold text-secondary" style={{ marginBottom: 6 }}>Recovery procedure:</div>
-          <div className="sql-block">{rollback}</div>
-        </div>
-      )}
-      {contract.permanent_components?.length > 0 && (
-        <div style={{ marginTop: 12 }}>
-          <div className="text-sm font-semibold text-secondary" style={{ marginBottom: 6 }}>Permanent components:</div>
-          {contract.permanent_components.map((p, i) => (
-            <div key={i} style={{
-              padding: '8px 12px', marginBottom: 6, background: 'var(--full-bg)',
-              border: '1px solid #FECACA', borderRadius: 'var(--radius-sm)',
-              fontSize: 13, color: '#7F1D1D'
-            }}>
-              {p}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 const TERMINAL = new Set(['APPROVED', 'REJECTED', 'AUTO_REJECTED', 'AUTO_EXECUTED', 'COMPLETED', 'FAILED', 'TIMED_OUT'])
+
+const TERMINAL_DISPLAY = {
+  APPROVED:      { icon: '✓', label: 'Approved', color: 'var(--green)',  bg: 'var(--green-dim)',  border: 'var(--green-border)' },
+  AUTO_EXECUTED: { icon: '⚡', label: 'Auto-Executed', color: 'var(--cyan)',   bg: 'rgba(34,211,238,.08)', border: 'rgba(34,211,238,.25)' },
+  COMPLETED:     { icon: '✓', label: 'Completed', color: 'var(--green)',  bg: 'var(--green-dim)',  border: 'var(--green-border)' },
+  REJECTED:      { icon: '✕', label: 'Rejected',  color: 'var(--red)',    bg: 'var(--red-dim)',    border: 'var(--red-border)' },
+  AUTO_REJECTED: { icon: '🚫', label: 'Auto-Rejected by Policy', color: 'var(--red)', bg: 'var(--red-dim)', border: 'var(--red-border)' },
+  TIMED_OUT:     { icon: '⏱', label: 'Timed Out — Auto-Rejected', color: 'var(--red)', bg: 'var(--red-dim)', border: 'var(--red-border)' },
+  FAILED:        { icon: '✕', label: 'Failed',    color: 'var(--red)',    bg: 'var(--red-dim)',    border: 'var(--red-border)' },
+}
 
 export default function ContractView() {
   const { id } = useParams()
@@ -251,17 +51,28 @@ export default function ContractView() {
 
   if (loading) return (
     <>
-      <style>{contractStyles}</style>
-      <div className="page-header"><div className="page-title">Loading…</div></div>
-      <div className="page-body"><div className="loading-center"><div className="spinner" /> Loading contract…</div></div>
+      <div className="page-header">
+        <button
+          onClick={() => navigate('/')}
+          style={{ background: 'none', border: 'none', color: 'var(--text-3)', fontSize: '12px', cursor: 'pointer', padding: 0, marginBottom: '8px', fontFamily: 'var(--font)' }}
+        >
+          ← Review Queue
+        </button>
+        <div className="page-title">Loading Contract…</div>
+      </div>
+      <div className="page-body"><ContractSkeleton /></div>
     </>
   )
 
   if (fetchError) return (
     <>
-      <style>{contractStyles}</style>
       <div className="page-header">
-        <button className="back-link" onClick={() => navigate('/')}>← Review Queue</button>
+        <button
+          onClick={() => navigate('/')}
+          style={{ background: 'none', border: 'none', color: 'var(--text-3)', fontSize: '12px', cursor: 'pointer', padding: 0, marginBottom: '8px', fontFamily: 'var(--font)' }}
+        >
+          ← Review Queue
+        </button>
         <div className="page-title">Error</div>
       </div>
       <div className="page-body"><div className="error-banner">⚠ {fetchError}</div></div>
@@ -273,70 +84,236 @@ export default function ContractView() {
 
   const isPermanent = contract.reversibility === 'PERMANENT'
   const currentStatus = status || wsStatus
-  const terminal = TERMINAL.has(currentStatus)
-  const isPositive = ['APPROVED', 'AUTO_EXECUTED', 'COMPLETED'].includes(currentStatus)
+  const isTerminal = TERMINAL.has(currentStatus)
+  const termMeta = TERMINAL_DISPLAY[currentStatus]
+
+  const flatContract = {
+    ...contract,
+    reversibility: contract.reversibility_classification || contract.reversibility || contract.reversibility?.classification,
+    reversibility_reason: contract.reversibility_reason || contract.reversibility?.reason,
+    rollback_plan: contract.rollback_plan || contract.reversibility?.rollback_sql,
+    permanent_components: contract.permanent_components || contract.reversibility?.permanent_components || [],
+    estimated_primary_rows: contract.estimated_primary_rows ?? contract.parsed_plan?.estimated_primary_rows ?? contract.blast_radius?.primary_rows,
+    operation_type: contract.operation_type || contract.parsed_plan?.operation_type,
+    primary_table: contract.primary_table || contract.parsed_plan?.primary_table,
+    cascade: contract.cascade || contract.blast_radius?.cascade || [],
+    historical_precedents: contract.historical_precedents || contract.retrieval_results?.top3_historical || [],
+    blast_radius_confidence_reason: contract.blast_radius_confidence_reason,
+  }
 
   return (
     <>
-      <style>{contractStyles}</style>
-      <div className="page-header">
-        <button className="back-link" onClick={() => navigate('/')}>← Review Queue</button>
-        <div className="contract-header-bar">
-          <div className="contract-header-top">
-            <div className="contract-header-badges">
-              <RiskTierBadge tier={contract.risk_tier} />
-              {isPermanent && <span className="badge badge-permanent">⚠ PERMANENT</span>}
-              {contract.prompt_injection_risk && <span className="badge badge-rejected">🚨 Injection Risk</span>}
-            </div>
-            <span className="contract-op-id">{contract.operation_id}</span>
+      {/* Page header */}
+      <div className="page-header" style={{ paddingBottom: '16px' }}>
+        <button
+          onClick={() => navigate('/')}
+          style={{
+            background: 'none', border: 'none', color: 'var(--text-3)',
+            fontSize: '12px', cursor: 'pointer', padding: 0, marginBottom: '12px',
+            fontFamily: 'var(--font)', display: 'flex', alignItems: 'center', gap: '4px',
+            transition: 'color var(--t-1)',
+          }}
+          onMouseEnter={e => e.currentTarget.style.color = 'var(--text-1)'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-3)'}
+        >
+          ← Review Queue
+        </button>
+
+        {/* Contract hero */}
+        <div style={{
+          background: 'var(--surface-2)',
+          border: `1px solid ${isPermanent ? 'var(--purple-border)' : flatContract.risk_tier === 'FULL_CONTRACT' ? 'var(--red-border)' : 'var(--border-1)'}`,
+          borderRadius: 'var(--r-lg)',
+          padding: '16px 20px',
+          boxShadow: isPermanent ? '0 0 24px var(--purple-dim)' : flatContract.risk_tier === 'FULL_CONTRACT' ? '0 0 16px var(--red-dim)' : 'none',
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            flexWrap: 'wrap',
+            marginBottom: '8px',
+          }}>
+            <RiskTierBadge tier={flatContract.risk_tier} />
+            {isPermanent && (
+              <span style={{
+                fontSize: '10px',
+                fontWeight: '800',
+                color: 'var(--purple)',
+                background: 'var(--purple-dim)',
+                border: '1px solid var(--purple-border)',
+                padding: '2px 8px',
+                borderRadius: '100px',
+                letterSpacing: '0.4px',
+                textTransform: 'uppercase',
+              }}>⚠ PERMANENT</span>
+            )}
+            {flatContract.prompt_injection_risk && (
+              <span style={{
+                fontSize: '10px',
+                fontWeight: '800',
+                color: 'var(--red)',
+                background: 'var(--red-dim)',
+                border: '1px solid var(--red-border)',
+                padding: '2px 8px',
+                borderRadius: '100px',
+                letterSpacing: '0.4px',
+                textTransform: 'uppercase',
+              }}>🚨 Injection Risk</span>
+            )}
+            <span style={{
+              marginLeft: 'auto',
+              fontFamily: 'var(--mono)',
+              fontSize: '11px',
+              color: 'var(--text-3)',
+            }}>{flatContract.operation_id}</span>
           </div>
-          <div className="contract-intent">
-            {contract.intent_summary || contract.raw_sql?.slice(0, 150)}
+
+          <div style={{
+            fontSize: '16px',
+            fontWeight: '600',
+            color: 'var(--text-0)',
+            lineHeight: '1.4',
+          }}>
+            {flatContract.intent_summary || flatContract.raw_sql?.slice(0, 150)}
           </div>
         </div>
       </div>
 
       <div className="page-body">
-        {terminal && (
-          <div className={`status-banner ${isPositive ? 'approved' : 'rejected'}`}>
-            {isPositive ? '✅' : '❌'} Decision recorded: <strong>{currentStatus}</strong>
-            {contract.decision_reason ? ` — "${contract.decision_reason}"` : ''}
+        {/* Terminal status banner */}
+        {isTerminal && termMeta && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '12px 16px',
+            background: termMeta.bg,
+            border: `1px solid ${termMeta.border}`,
+            borderRadius: 'var(--r-md)',
+            marginBottom: '20px',
+            fontSize: '13px',
+            fontWeight: '600',
+            color: termMeta.color,
+          }}>
+            <span>{termMeta.icon}</span>
+            <span>Decision recorded: <strong>{termMeta.label}</strong></span>
+            {flatContract.decision_reason ? (
+              <span style={{ color: 'var(--text-2)', fontWeight: '400', fontStyle: 'italic', marginLeft: '4px' }}>
+                — "{flatContract.decision_reason}"
+              </span>
+            ) : null}
           </div>
         )}
 
-        <div className="contract-layout">
-          <div className="contract-sections">
-            <ContractSection number="1" question="What will happen?">
-              <SectionImpact contract={contract} />
+        {/* Two-column layout */}
+        <div className="contract-two-col" style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) 320px',
+          gap: '20px',
+          alignItems: 'start',
+        }}>
+          {/* Left: contract sections */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <ContractSection
+              number="1"
+              question="What will happen?"
+              defaultOpen={true}
+            >
+              <OperationSection contract={flatContract} />
             </ContractSection>
 
-            <ContractSection number="2" question="What cannot be undone?">
-              <SectionReversibility contract={contract} />
+            <ContractSection
+              number="2"
+              question="What cannot be undone?"
+              defaultOpen={true}
+              accent={isPermanent ? 'var(--purple)' : undefined}
+            >
+              <ReversibilitySection contract={flatContract} />
             </ContractSection>
 
-            <ContractSection number="3" question="Has this happened before?">
-              <HistoricalCard
-                precedents={contract.historical_precedents || []}
-                retrievalAvailable={contract.retrieval_results?.retrieval_available !== false}
+            <ContractSection
+              number="2b"
+              question="Simulation results"
+              defaultOpen={!!flatContract.simulation?.executed}
+            >
+              <SandboxSection contract={flatContract} />
+            </ContractSection>
+
+            <ContractSection
+              number="3"
+              question="Has this happened before?"
+              defaultOpen={false}
+            >
+              <PrecedentsSection
+                precedents={flatContract.historical_precedents}
+                retrievalAvailable={flatContract.retrieval_results?.retrieval_available !== false}
               />
             </ContractSection>
 
-            <ContractSection number="4" question="What does the system flag?">
-              <SystemFlags contract={contract} />
+            <ContractSection
+              number="4"
+              question="What does the system flag?"
+              defaultOpen={(flatContract.policy_violations?.length > 0) || flatContract.prompt_injection_risk}
+              accent={flatContract.policy_violations?.length > 0 ? 'var(--red)' : undefined}
+            >
+              <FlagsSection contract={flatContract} />
             </ContractSection>
           </div>
 
-          <div className="contract-sidebar">
+          {/* Right: decision sidebar */}
+          <div className="contract-sidebar-col" style={{ position: 'sticky', top: '20px' }}>
+            {/* Blast radius quick stat */}
+            <div style={{
+              background: 'var(--surface-1)',
+              border: '1px solid var(--border-1)',
+              borderRadius: 'var(--r-lg)',
+              padding: '14px 16px',
+              marginBottom: '12px',
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '10px',
+            }}>
+              <div>
+                <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.7px', color: 'var(--text-3)', marginBottom: '3px' }}>
+                  Est. Impact
+                </div>
+                <div style={{ fontSize: '22px', fontWeight: '800', fontFamily: 'var(--mono)', color: 'var(--text-0)', letterSpacing: '-1px' }}>
+                  {flatContract.blast_radius?.total_rows != null
+                    ? Number(flatContract.blast_radius.total_rows).toLocaleString()
+                    : flatContract.estimated_primary_rows != null
+                    ? Number(flatContract.estimated_primary_rows).toLocaleString()
+                    : '—'}
+                </div>
+                <div style={{ fontSize: '10px', color: 'var(--text-3)', marginTop: '2px' }}>rows</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.7px', color: 'var(--text-3)', marginBottom: '3px' }}>
+                  Reversibility
+                </div>
+                <div style={{ marginTop: '4px' }}>
+                  <ReversibilityBadge rev={flatContract.reversibility} />
+                </div>
+              </div>
+            </div>
+
             <DecisionPanel
               approvalId={id}
               isPermanent={isPermanent}
-              isTerminal={terminal}
+              isTerminal={isTerminal}
               terminalStatus={currentStatus}
               onDecisionSent={fetchContract}
             />
           </div>
         </div>
       </div>
+
+      <style>{`
+        @media (max-width: 1100px) {
+          .contract-two-col { grid-template-columns: 1fr !important; }
+          .contract-sidebar-col { position: static !important; }
+        }
+      `}</style>
     </>
   )
 }
