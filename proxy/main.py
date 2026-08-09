@@ -189,11 +189,23 @@ async def intercept_tool_call(
             raise HTTPException(status_code=502, detail=f"MCP target error: {exc}")
 
     # ── Full pipeline — create workflow record and kick off background ─────────
-    # We need a preliminary contract to create the workflow record.
-    # The orchestrator's INTAKE state creates the real one.
     from orchestrator.states.intake import run_intake
 
     initial_contract = run_intake(manifest_dict)
+
+    # Inject the canonical operation_id into manifest_dict so that when the
+    # LangGraph INTAKE node calls run_intake again on the same dict it reuses
+    # this ID instead of generating a new one. Without this, HUMAN_REVIEW and
+    # EXECUTION poll workflow_store with a different ID and find nothing.
+    manifest_dict["operation_id"] = initial_contract.operation_id
+
+    # Recompute manifest hash to cover operation_id — the EXECUTION state
+    # recomputes from all keys except _manifest_hash, so both sides must match.
+    _rehash_body = {k: v for k, v in manifest_dict.items() if k != "_manifest_hash"}
+    manifest_dict["_manifest_hash"] = hashlib.sha256(
+        json.dumps(_rehash_body, sort_keys=True, default=str).encode()
+    ).hexdigest()
+
     record = await workflow_store.create(initial_contract, manifest_dict)
 
     # Kick off the full LangGraph workflow in the background.

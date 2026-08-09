@@ -89,6 +89,14 @@ async def run_human_review(contract: HandoffContract) -> HandoffContract:
     # We poll it here at POLL_INTERVAL_SECONDS until a decision arrives or timeout.
     from orchestrator.workflow_store import workflow_store
 
+    # Reset approval_state to PENDING when re-entering HUMAN_REVIEW after MODIFY.
+    # Without this the poll loop immediately finds approval_state=MODIFIED, breaks,
+    # and routes back to analysis — creating an infinite loop. Persisting the reset
+    # also allows record_decision() to accept the new approval decision.
+    if contract.approval_state == ApprovalState.MODIFIED:
+        contract.approval_state = ApprovalState.PENDING
+        await workflow_store.update_contract(op_id, contract)
+
     deadline = start.timestamp() + REVIEW_TIMEOUT_SECONDS
 
     while datetime.now(timezone.utc).timestamp() < deadline:

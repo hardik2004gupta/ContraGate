@@ -9,7 +9,7 @@ contracts before any action executes against production.
 
 ## Status
 
-**Phase 10 complete.** All 10 phases implemented. 686 tests pass, 0 failures. Railway deployment artifacts ready; actual Railway deployment and live Slack verification require operator credentials.
+**Phase 10.5 audit complete.** All 10 phases implemented. 688 tests pass, 0 failures. Three defects discovered and fixed during the Phase 10.5 release-candidate audit. Railway deployment artifacts ready; actual Railway deployment and live Slack verification require operator credentials.
 
 | Phase | Description | Status |
 |-------|-------------|--------|
@@ -63,7 +63,7 @@ docker compose up -d
 pytest tests/e2e/ -v -m e2e
 ```
 
-Current baseline: **686 passed, 8 skipped** (with live Docker stack). Non-E2E tests: 673 passed with `make test-full`. E2E tests: 13 passed with `make test-e2e` (full stack required).
+Current baseline: **688 passed, 8 skipped** (with live Docker stack). Without Docker: 630 passed, 53 skipped (DB-dependent tests skip without PostgreSQL). E2E tests: 13 passed with `make test-e2e` (full stack required).
 
 ## Documentation
 
@@ -73,6 +73,7 @@ Current baseline: **686 passed, 8 skipped** (with live Docker stack). Non-E2E te
 - **[docs/PHASE_8_PRODUCTION_HARDENING.md](docs/PHASE_8_PRODUCTION_HARDENING.md)** — Phase 8 gap audit and changes
 - **[docs/PHASE_9_ONLINE_DEPLOYMENT.md](docs/PHASE_9_ONLINE_DEPLOYMENT.md)** — Phase 9 deployment changes and acceptance gates
 - **[docs/PHASE_10_PRODUCTION_RELEASE.md](docs/PHASE_10_PRODUCTION_RELEASE.md)** — Phase 10 gap audit, conformance matrix, final verdict
+- **[docs/PHASE_10_5_LOCAL_RELEASE_AUDIT.md](docs/PHASE_10_5_LOCAL_RELEASE_AUDIT.md)** — Phase 10.5 final release-candidate audit: 3 defects found and fixed, all 15 security invariants verified
 - **[docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md)** — Honest scope boundaries and future roadmap
 - **[docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md)** — Five architecture-level decisions with rationale
 

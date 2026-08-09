@@ -31,6 +31,7 @@ from typing import Any
 
 import psycopg2
 import psycopg2.extras
+from psycopg2 import sql as pgsql
 
 from mcp_servers.base.server_base import ContraGateMCPServer
 
@@ -126,15 +127,22 @@ def capture_diff(session_id: str, tables: list[str], phase: str = "pre") -> dict
     counts = {}
     with conn.cursor() as cur:
         for table in tables:
-            # Use the staging schema prefix if the table has no schema qualifier
-            qualified = (
-                table if "." in table else f"contragate_staging.{table}"
-            )
+            # Split schema.table or default to contragate_staging schema.
+            # Use psycopg2.sql.Identifier to prevent SQL injection from table names.
+            if "." in table:
+                schema, tbl = table.split(".", 1)
+                qualified = pgsql.SQL("SELECT COUNT(*) FROM {}.{}").format(
+                    pgsql.Identifier(schema), pgsql.Identifier(tbl)
+                )
+            else:
+                qualified = pgsql.SQL("SELECT COUNT(*) FROM {}.{}").format(
+                    pgsql.Identifier("contragate_staging"), pgsql.Identifier(table)
+                )
             try:
-                cur.execute(f"SELECT COUNT(*) FROM {qualified}")
+                cur.execute(qualified)
                 row = cur.fetchone()
                 counts[table] = row[0] if row else 0
-            except Exception as exc:
+            except Exception:
                 counts[table] = -1  # Indicate error for this table
 
     return {"table_counts": counts}

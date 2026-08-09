@@ -97,7 +97,11 @@ def run_intake(manifest: dict[str, Any]) -> HandoffContract:
         SourceType.EXTERNAL_USER_INPUT, SourceType.EXTERNAL_AGENT
     )
 
-    operation_id = _generate_operation_id()
+    # Reuse an existing operation_id if the proxy already assigned one;
+    # otherwise generate a fresh one. This prevents double-ID divergence when
+    # the proxy calls run_intake to seed the workflow_store and the LangGraph
+    # INTAKE node calls run_intake again with the same manifest_dict.
+    operation_id = manifest.get("operation_id") or _generate_operation_id()
 
     contract = HandoffContract(
         operation_id=operation_id,
