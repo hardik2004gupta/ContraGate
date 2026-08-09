@@ -49,6 +49,7 @@ def _get_conn() -> psycopg2.extensions.connection:
 
 
 server = ContraGateMCPServer("postgres-reader", port=PORT)
+app = server.app  # uvicorn entry point
 
 
 @server.tool("get_table_schema")

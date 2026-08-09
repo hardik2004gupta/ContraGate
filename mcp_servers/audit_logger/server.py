@@ -39,6 +39,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "")
 PORT = int(os.environ.get("AUDIT_LOGGER_PORT", "8013"))
 
 server = ContraGateMCPServer("audit-logger", port=PORT)
+app = server.app  # uvicorn entry point
 
 
 def _get_conn() -> psycopg2.extensions.connection:

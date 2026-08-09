@@ -9,7 +9,7 @@ contracts before any action executes against production.
 
 ## Status
 
-**Phase 8 complete.** Production hardening applied. Phases 1–8 implemented.
+**Phase 9 complete.** Full 7-container local stack running. 686 tests pass (673 non-E2E + 13 E2E). Railway deployment artifacts ready.
 
 | Phase | Description | Status |
 |-------|-------------|--------|
@@ -22,8 +22,8 @@ contracts before any action executes against production.
 | Phase 6 | Full orchestration — all state transitions, guards, timeouts, retries | ✅ Complete |
 | Phase 7 | React UI + decision loop — approval queue, contract view, audit log | ✅ Complete |
 | Phase 8 | Production hardening — PostgreSQL persistence, security fixes, cleanup | ✅ Complete |
-| Phase 9 | Integration + Railway deployment | 🔜 Next |
-| Phase 10 | Hardening + final verification + screen recording | 🔜 Upcoming |
+| Phase 9 | Online deployment — real agents container, Docker builds, 686 tests pass | ✅ Complete |
+| Phase 10 | Hardening + final verification + screen recording | 🔜 Next |
 
 ## Architecture
 
@@ -63,7 +63,7 @@ docker compose up -d
 pytest tests/e2e/ -v -m e2e
 ```
 
-Current baseline: **628 passed, 53 skipped** (skipped tests require live PostgreSQL via Docker).
+Current baseline: **686 passed, 8 skipped** (with live Docker stack). Non-E2E tests: 673 passed with `make test-full`. E2E tests: 13 passed with `make test-e2e` (full stack required).
 
 ## Documentation
 
@@ -71,6 +71,7 @@ Current baseline: **628 passed, 53 skipped** (skipped tests require live Postgre
 - **[docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)** — Phase-by-phase build plan
 - **[docs/ADR/](docs/ADR/)** — Architecture Decision Records
 - **[docs/PHASE_8_PRODUCTION_HARDENING.md](docs/PHASE_8_PRODUCTION_HARDENING.md)** — Phase 8 gap audit and changes
+- **[docs/PHASE_9_ONLINE_DEPLOYMENT.md](docs/PHASE_9_ONLINE_DEPLOYMENT.md)** — Phase 9 deployment changes and acceptance gates
 
 ## Known Limitations (Honest Scope)
 
@@ -80,7 +81,8 @@ Current baseline: **628 passed, 53 skipped** (skipped tests require live Postgre
 - **Single approver:** Dual-approval is a schema field but not implemented in the MVP.
 - **No OIDC:** API key authentication only (`USE_MOCK_AUTH=true` in local dev).
 - **No cross-domain consequence propagation:** Webhook consequences are traced to the boundary only.
-- **53 PostgreSQL-dependent tests:** Skipped without a live PostgreSQL instance (start Docker stack to run them).
+- **Local PostgreSQL port:** The Docker stack binds the DB on host port `15432` (not 5432) to avoid conflict with local PostgreSQL installs. Set `DATABASE_URL=postgresql://contragate:contragate_local@localhost:15432/contragate` when running tests from the host.
+- **8 skipped tests:** Require Slack credentials or Railway — skipped in local dev.
 
 ## Design Decisions
 

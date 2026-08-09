@@ -40,6 +40,7 @@ SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
 SLACK_APPROVAL_CHANNEL = os.environ.get("SLACK_APPROVAL_CHANNEL", "#contragate-approvals")
 
 server = ContraGateMCPServer("notifier", port=PORT)
+app = server.app  # uvicorn entry point
 
 # In-memory pending approvals (maps approval_id -> contract summary)
 _pending: dict[str, dict] = {}

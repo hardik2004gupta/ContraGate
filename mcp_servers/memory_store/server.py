@@ -39,6 +39,7 @@ PORT = int(os.environ.get("MEMORY_STORE_PORT", "8012"))
 JACCARD_THRESHOLD = float(os.environ.get("JACCARD_SIMILARITY_THRESHOLD", "0.3"))
 
 server = ContraGateMCPServer("memory-store", port=PORT)
+app = server.app  # uvicorn entry point
 
 
 def _get_conn() -> psycopg2.extensions.connection:

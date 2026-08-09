@@ -1,0 +1,64 @@
+# ContraGate .dockerignore — production image hygiene
+# Excludes files that must NOT be in Docker images:
+#   - Local secrets (.env with credentials)
+#   - Development artifacts (caches, test output)
+#   - Large generated directories (node_modules, dist)
+#   - Git metadata
+#   - IDE configs
+
+# ── Secrets — NEVER in images ─────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+*.crt
+
+# ── Git ──────────────────────────────────────────────────────────────────────
+.git
+.gitignore
+.gitattributes
+
+# ── Python artifacts ──────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
+.tox/
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# ── Node artifacts ────────────────────────────────────────────────────────────
+ui/node_modules/
+ui/dist/
+
+# ── IDE and editor ────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# ── Documentation (not needed in images) ─────────────────────────────────────
+docs/
+*.pdf
+*.md
+!README.md
+
+# ── Test files (not needed in production images) ──────────────────────────────
+tests/
+sql_analysis_lib/tests/
+
+# ── Local dev artifacts ────────────────────────────────────────────────────────
+*.log
+*.tmp
+tmp/

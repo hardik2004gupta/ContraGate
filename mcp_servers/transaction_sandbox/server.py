@@ -43,16 +43,18 @@ STATEMENT_TIMEOUT_MS = int(os.environ.get("SANDBOX_STATEMENT_TIMEOUT", "5000"))
 _sessions: dict[str, psycopg2.extensions.connection] = {}
 
 server = ContraGateMCPServer("transaction-sandbox", port=PORT)
+app = server.app  # uvicorn entry point
 
 
 def _get_staging_conn() -> psycopg2.extensions.connection:
     """Open a NEW connection to the staging database. Never the production DB."""
-    if not STAGING_DATABASE_URL:
+    url = os.environ.get("STAGING_DATABASE_URL", "")
+    if not url:
         raise RuntimeError(
             "STAGING_DATABASE_URL is not set. "
             "The transaction sandbox requires a writable staging instance."
         )
-    return psycopg2.connect(STAGING_DATABASE_URL)
+    return psycopg2.connect(url)
 
 
 @server.tool("begin_sandbox")

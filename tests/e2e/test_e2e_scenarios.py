@@ -101,10 +101,9 @@ class TestE2E1FastPathSelect:
     def test_select_auto_executes(self):
         sql = "SELECT id, email FROM users WHERE status = 'active' LIMIT 10"
         resp = _mcp_call(sql)
-        assert resp.status_code == 200
+        # Proxy returns 200 for auto-executed, 202 Accepted for pending human review
+        assert resp.status_code in (200, 202), f"Unexpected HTTP status: {resp.status_code}"
         body = resp.json()
-        # Should auto-execute or return PENDING depending on policy
-        # For a simple non-PII SELECT with low cost, expect auto-execute
         status = body.get("status", "")
         assert status in ("AUTO_EXECUTED", "PENDING_HUMAN_APPROVAL"), f"Unexpected status: {body}"
 
@@ -122,7 +121,7 @@ class TestE2E2StandardUpdateApproval:
     def test_update_routes_to_human_review(self):
         sql = "UPDATE users SET last_login = NOW() WHERE status = 'active'"
         resp = _mcp_call(sql)
-        assert resp.status_code == 200
+        assert resp.status_code in (200, 202), f"Unexpected HTTP status: {resp.status_code}"
         body = resp.json()
         # May be auto-executed or pending depending on EXPLAIN cost and policies
         if body.get("status") == "AUTO_EXECUTED":
@@ -157,7 +156,7 @@ class TestE2E3DangerousDeleteWithRejection:
     def test_delete_routes_to_full_contract(self):
         sql = "DELETE FROM users WHERE last_active < NOW() - INTERVAL '2 years'"
         resp = _mcp_call(sql)
-        assert resp.status_code == 200
+        assert resp.status_code in (200, 202), f"Unexpected HTTP status: {resp.status_code}"
         body = resp.json()
         if body.get("status") == "AUTO_EXECUTED":
             pytest.skip("Unexpected auto-execution — check policy configuration")
