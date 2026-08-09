@@ -31,6 +31,9 @@ from orchestrator.handoff_schema import ApprovalState, HandoffContract
 logger = logging.getLogger(__name__)
 
 _DB_URL = os.environ.get("DATABASE_URL")
+# In production (DEV_MODE=false), DB unavailability is a fatal startup error,
+# not a graceful degradation. Set DEV_MODE=true only for local dev without Docker.
+_DEV_MODE = os.environ.get("DEV_MODE", "true").lower() == "true"
 
 _CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS workflow_records (
@@ -132,9 +135,16 @@ class WorkflowStore:
         """
         url = database_url or _DB_URL
         if not url:
+            if not _DEV_MODE:
+                raise RuntimeError(
+                    "DATABASE_URL is not set. ContraGate production requires PostgreSQL. "
+                    "Approval records cannot survive restarts without persistence. "
+                    "Set DEV_MODE=true only for local development without Docker."
+                )
             logger.warning(
                 "DATABASE_URL not set — WorkflowStore running in in-memory-only mode. "
-                "PENDING_HUMAN_APPROVAL records will not survive restarts."
+                "PENDING_HUMAN_APPROVAL records will not survive restarts. "
+                "Set DEV_MODE=false and provide DATABASE_URL for production."
             )
             return
         try:
@@ -149,8 +159,14 @@ class WorkflowStore:
             await self._load_from_db()
             logger.info("WorkflowStore: PostgreSQL persistence active")
         except Exception as exc:
+            if not _DEV_MODE:
+                raise RuntimeError(
+                    f"WorkflowStore: DB init failed in production mode: {exc}. "
+                    "Fix DATABASE_URL or set DEV_MODE=true for local development."
+                ) from exc
             logger.warning(
-                "WorkflowStore: DB init failed (%s) — falling back to in-memory-only mode", exc
+                "WorkflowStore: DB init failed (%s) — falling back to in-memory-only mode. "
+                "This is acceptable only in local development (DEV_MODE=true).", exc
             )
             self._pool = None
 

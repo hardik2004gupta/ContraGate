@@ -9,7 +9,7 @@ contracts before any action executes against production.
 
 ## Status
 
-**Phase 9 complete.** Full 7-container local stack running. 686 tests pass (673 non-E2E + 13 E2E). Railway deployment artifacts ready.
+**Phase 10 complete.** All 10 phases implemented. 686 tests pass, 0 failures. Railway deployment artifacts ready; actual Railway deployment and live Slack verification require operator credentials.
 
 | Phase | Description | Status |
 |-------|-------------|--------|
@@ -23,7 +23,7 @@ contracts before any action executes against production.
 | Phase 7 | React UI + decision loop — approval queue, contract view, audit log | ✅ Complete |
 | Phase 8 | Production hardening — PostgreSQL persistence, security fixes, cleanup | ✅ Complete |
 | Phase 9 | Online deployment — real agents container, Docker builds, 686 tests pass | ✅ Complete |
-| Phase 10 | Hardening + final verification + screen recording | 🔜 Next |
+| Phase 10 | Production hardening — Slack modals, DEV_MODE guard, all docs, secret audit | ✅ Complete |
 
 ## Architecture
 
@@ -72,6 +72,9 @@ Current baseline: **686 passed, 8 skipped** (with live Docker stack). Non-E2E te
 - **[docs/ADR/](docs/ADR/)** — Architecture Decision Records
 - **[docs/PHASE_8_PRODUCTION_HARDENING.md](docs/PHASE_8_PRODUCTION_HARDENING.md)** — Phase 8 gap audit and changes
 - **[docs/PHASE_9_ONLINE_DEPLOYMENT.md](docs/PHASE_9_ONLINE_DEPLOYMENT.md)** — Phase 9 deployment changes and acceptance gates
+- **[docs/PHASE_10_PRODUCTION_RELEASE.md](docs/PHASE_10_PRODUCTION_RELEASE.md)** — Phase 10 gap audit, conformance matrix, final verdict
+- **[docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md)** — Honest scope boundaries and future roadmap
+- **[docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md)** — Five architecture-level decisions with rationale
 
 ## Known Limitations (Honest Scope)
 

@@ -25,6 +25,7 @@ import os
 import time
 import urllib.parse
 
+import httpx
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
@@ -36,6 +37,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/slack")
 
 SLACK_SIGNING_SECRET = os.environ.get("SLACK_SIGNING_SECRET", "")
+SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
 USE_MOCK = os.environ.get("USE_MOCK_NOTIFIER", "true").lower() == "true"
 
 # Slack replay-attack window: reject requests older than 5 minutes
@@ -103,19 +105,79 @@ async def slack_webhook(
 
 
 async def _handle_block_action(payload: dict) -> JSONResponse:
-    """Handle Slack button clicks (e.g., 'View Full Contract' action)."""
+    """Handle Slack button clicks. Approve/Reject buttons open modals via views.open."""
     actions = payload.get("actions", [])
     if not actions:
         return JSONResponse(content={"ok": True})
 
     action = actions[0]
     action_id = action.get("action_id", "")
+    trigger_id = payload.get("trigger_id", "")
 
     if action_id == "view_contract":
-        # Button opens the UI URL — no workflow_store update needed
+        # Link button — Slack opens the URL automatically, nothing to do
         return JSONResponse(content={"ok": True})
 
-    # Other actions are handled via view_submission (modal)
+    # Approve / Reject modal buttons: action_id is open_approve_modal_<id> or open_reject_modal_<id>
+    if action_id.startswith("open_approve_modal_"):
+        approval_id = action_id[len("open_approve_modal_"):]
+        return await _open_decision_modal(trigger_id, "approve", approval_id)
+
+    if action_id.startswith("open_reject_modal_"):
+        approval_id = action_id[len("open_reject_modal_"):]
+        return await _open_decision_modal(trigger_id, "reject", approval_id)
+
+    return JSONResponse(content={"ok": True})
+
+
+async def _open_decision_modal(trigger_id: str, decision: str, approval_id: str) -> JSONResponse:
+    """Open a Slack modal to capture the approval/rejection reason."""
+    if not SLACK_BOT_TOKEN:
+        logger.warning("SLACK_BOT_TOKEN not set — cannot open modal")
+        return JSONResponse(content={"ok": False, "error": "no_token"})
+
+    title = "Approve Operation" if decision == "approve" else "Reject Operation"
+    submit_label = "Confirm Approve" if decision == "approve" else "Confirm Reject"
+    callback_id = f"{decision}_{approval_id}"
+
+    modal = {
+        "type": "modal",
+        "callback_id": callback_id,
+        "title": {"type": "plain_text", "text": title},
+        "submit": {"type": "plain_text", "text": submit_label},
+        "close": {"type": "plain_text", "text": "Cancel"},
+        "blocks": [
+            {
+                "type": "input",
+                "block_id": "reason_block",
+                "label": {"type": "plain_text", "text": "Reason (minimum 10 characters)"},
+                "element": {
+                    "type": "plain_text_input",
+                    "action_id": "reason_input",
+                    "multiline": True,
+                    "min_length": 10,
+                    "placeholder": {
+                        "type": "plain_text",
+                        "text": "Provide a clear reason for your decision…",
+                    },
+                },
+            },
+        ],
+    }
+
+    try:
+        resp = httpx.post(
+            "https://slack.com/api/views.open",
+            headers={"Authorization": f"Bearer {SLACK_BOT_TOKEN}"},
+            json={"trigger_id": trigger_id, "view": modal},
+            timeout=10.0,
+        )
+        data = resp.json()
+        if not data.get("ok"):
+            logger.warning("Slack views.open failed: %s", data.get("error"))
+    except Exception as exc:
+        logger.error("Failed to open Slack modal: %s", exc)
+
     return JSONResponse(content={"ok": True})
 
 

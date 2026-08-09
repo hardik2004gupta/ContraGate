@@ -15,6 +15,7 @@ x-env: &env
   CONTRAGATE_TENANT_ID: ${CONTRAGATE_TENANT_ID:-demo_tenant}
   CONTRAGATE_MCP_API_KEY: ${CONTRAGATE_MCP_API_KEY:-dev-mcp-key}
   USE_MOCK_AUTH: "true"
+  DEV_MODE: "true"
   # MCP service URLs
   POSTGRES_READER_URL: http://contragate-mcp:8010
   TRANSACTION_SANDBOX_URL: http://contragate-mcp:8011

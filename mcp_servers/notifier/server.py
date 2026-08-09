@@ -113,6 +113,7 @@ def _send_slack_approval(info: dict) -> dict:
     if not SLACK_BOT_TOKEN:
         raise RuntimeError("SLACK_BOT_TOKEN not set for production notifier")
 
+    approval_id = info["approval_id"]
     message = {
         "channel": SLACK_APPROVAL_CHANNEL,
         "text": f"ContraGate Review Required — {info['risk_tier']}",
@@ -138,7 +139,22 @@ def _send_slack_approval(info: dict) -> dict:
                     {
                         "type": "button",
                         "text": {"type": "plain_text", "text": "View Full Contract"},
+                        "action_id": "view_contract",
                         "url": info["ui_url"],
+                    },
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Approve"},
+                        "action_id": f"open_approve_modal_{approval_id}",
+                        "style": "primary",
+                        "value": approval_id,
+                    },
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Reject"},
+                        "action_id": f"open_reject_modal_{approval_id}",
+                        "style": "danger",
+                        "value": approval_id,
                     },
                 ],
             },
