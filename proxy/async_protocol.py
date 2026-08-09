@@ -88,7 +88,7 @@ async def list_pending_approvals() -> JSONResponse:
                 1 for h in c.historical_precedents if h.outcome in ("REJECTED", "ROLLED_BACK")
             ),
             "prompt_injection_risk": c.prompt_injection_risk,
-            "created_at": r.created_at.isoformat() + "Z",
+            "created_at": r.created_at.isoformat().replace('+00:00', 'Z'),
         })
     return JSONResponse(content={"approvals": items})
 
@@ -134,8 +134,8 @@ async def list_audit_records(limit: int = 100) -> JSONResponse:
             "decision_reason": c.decision_reason,
             "reversibility": c.reversibility.value if c.reversibility else None,
             "execution_success": c.execution_success,
-            "created_at": r.created_at.isoformat() + "Z",
-            "updated_at": r.updated_at.isoformat() + "Z",
+            "created_at": r.created_at.isoformat().replace('+00:00', 'Z'),
+            "updated_at": r.updated_at.isoformat().replace('+00:00', 'Z'),
         })
     return JSONResponse(content={"records": items})
 

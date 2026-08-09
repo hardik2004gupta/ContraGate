@@ -250,10 +250,14 @@ async def intercept_jsonrpc(
     body = await request.json()
     request_id = body.get("id")
 
+    # Pass x_contragate_tenant=None explicitly so the Header(default=None)
+    # marker object is not used as the tenant value when calling the function
+    # directly (bypassing FastAPI DI which would resolve it from request headers).
     response = await intercept_tool_call(
         request=request,
         x_contragate_source=x_contragate_source,
         x_contragate_caller=x_contragate_caller,
+        x_contragate_tenant=None,
     )
     data = json.loads(response.body)
 

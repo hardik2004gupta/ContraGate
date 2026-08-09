@@ -84,10 +84,19 @@ async def run_human_review(contract: HandoffContract) -> HandoffContract:
         llm_involved=False,
     )
 
+    # ── Persist the fully-analyzed contract and set status ───────────────────
+    # By this point all three agents have written their results to `contract`.
+    # Persist now so the UI can display the populated contract while we wait,
+    # and set the workflow status to PENDING_HUMAN_APPROVAL so list_pending()
+    # returns this record in the approval queue.
+    from orchestrator.workflow_store import WorkflowStatus, workflow_store
+
+    await workflow_store.update_contract(op_id, contract)
+    await workflow_store.update_status(op_id, WorkflowStatus.PENDING_HUMAN_APPROVAL)
+
     # ── Poll for human decision ──────────────────────────────────────────────
     # The workflow store is updated by the proxy when the notifier posts a callback.
     # We poll it here at POLL_INTERVAL_SECONDS until a decision arrives or timeout.
-    from orchestrator.workflow_store import workflow_store
 
     # Reset approval_state to PENDING when re-entering HUMAN_REVIEW after MODIFY.
     # Without this the poll loop immediately finds approval_state=MODIFIED, breaks,
@@ -96,6 +105,7 @@ async def run_human_review(contract: HandoffContract) -> HandoffContract:
     if contract.approval_state == ApprovalState.MODIFIED:
         contract.approval_state = ApprovalState.PENDING
         await workflow_store.update_contract(op_id, contract)
+        await workflow_store.update_status(op_id, WorkflowStatus.PENDING_HUMAN_APPROVAL)
 
     deadline = start.timestamp() + REVIEW_TIMEOUT_SECONDS
 
