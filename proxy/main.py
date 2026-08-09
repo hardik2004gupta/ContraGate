@@ -30,7 +30,7 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import uvicorn
@@ -42,6 +42,7 @@ from orchestrator.graph import run_workflow
 from orchestrator.workflow_store import WorkflowStatus, workflow_store
 from proxy.async_protocol import build_pending_response, router as approval_router
 from proxy.interceptor import InterceptionError, intercept
+from proxy.webhook_handler import router as webhook_router
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -57,7 +58,9 @@ TARGET_MCP_URL = os.environ.get("TARGET_MCP_URL", "http://contragate-mcp:8010")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("ContraGate proxy starting on port %d", PORT)
+    await workflow_store.initialize()
     yield
+    await workflow_store.close()
     logger.info("ContraGate proxy shutting down")
 
 
@@ -75,6 +78,7 @@ app.add_middleware(
 )
 
 app.include_router(approval_router)
+app.include_router(webhook_router)
 
 
 @app.get("/health")
@@ -83,7 +87,7 @@ async def health() -> dict:
         "status": "ok",
         "service": "contragate-proxy",
         "version": "0.2.0",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
     }
 
 
@@ -185,11 +189,23 @@ async def intercept_tool_call(
             raise HTTPException(status_code=502, detail=f"MCP target error: {exc}")
 
     # ── Full pipeline — create workflow record and kick off background ─────────
-    # We need a preliminary contract to create the workflow record.
-    # The orchestrator's INTAKE state creates the real one.
     from orchestrator.states.intake import run_intake
 
     initial_contract = run_intake(manifest_dict)
+
+    # Inject the canonical operation_id into manifest_dict so that when the
+    # LangGraph INTAKE node calls run_intake again on the same dict it reuses
+    # this ID instead of generating a new one. Without this, HUMAN_REVIEW and
+    # EXECUTION poll workflow_store with a different ID and find nothing.
+    manifest_dict["operation_id"] = initial_contract.operation_id
+
+    # Recompute manifest hash to cover operation_id — the EXECUTION state
+    # recomputes from all keys except _manifest_hash, so both sides must match.
+    _rehash_body = {k: v for k, v in manifest_dict.items() if k != "_manifest_hash"}
+    manifest_dict["_manifest_hash"] = hashlib.sha256(
+        json.dumps(_rehash_body, sort_keys=True, default=str).encode()
+    ).hexdigest()
+
     record = await workflow_store.create(initial_contract, manifest_dict)
 
     # Kick off the full LangGraph workflow in the background.
@@ -234,10 +250,14 @@ async def intercept_jsonrpc(
     body = await request.json()
     request_id = body.get("id")
 
+    # Pass x_contragate_tenant=None explicitly so the Header(default=None)
+    # marker object is not used as the tenant value when calling the function
+    # directly (bypassing FastAPI DI which would resolve it from request headers).
     response = await intercept_tool_call(
         request=request,
         x_contragate_source=x_contragate_source,
         x_contragate_caller=x_contragate_caller,
+        x_contragate_tenant=None,
     )
     data = json.loads(response.body)
 

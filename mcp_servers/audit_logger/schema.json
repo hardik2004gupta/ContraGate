@@ -5,30 +5,34 @@
   "port": 8013,
   "tools": [
     {
-      "name": "log_execution",
-      "description": "Append a completed execution record to the audit log.",
+      "name": "log_tool_call",
+      "description": "Record an agent tool invocation with input/output hashes.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "operation_id": { "type": "string" },
-          "tenant_id": { "type": "string" },
-          "outcome": { "type": "string" },
-          "contract_json": { "type": "string" }
+          "agent_name": { "type": "string" },
+          "tool_name": { "type": "string" },
+          "input_hash": { "type": "string" },
+          "output_hash": { "type": "string" },
+          "timestamp": { "type": "string" }
         },
-        "required": ["operation_id", "tenant_id", "outcome"]
+        "required": ["operation_id", "agent_name", "tool_name", "input_hash", "output_hash", "timestamp"]
       }
     },
     {
-      "name": "log_auto_reject",
-      "description": "Append an auto-rejection record citing the specific policy rule.",
+      "name": "log_agent_output",
+      "description": "Record an agent's final structured output for a pipeline state.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "operation_id": { "type": "string" },
-          "tenant_id": { "type": "string" },
-          "auto_reject_reason": { "type": "string" }
+          "agent_name": { "type": "string" },
+          "output_summary": { "type": "string" },
+          "handoff_contract_hash": { "type": "string" },
+          "timestamp": { "type": "string" }
         },
-        "required": ["operation_id", "tenant_id"]
+        "required": ["operation_id", "agent_name", "output_summary", "handoff_contract_hash", "timestamp"]
       }
     },
     {
@@ -40,9 +44,39 @@
           "operation_id": { "type": "string" },
           "decision": { "type": "string" },
           "reason": { "type": "string" },
-          "approver_id": { "type": "string" }
+          "approver_id": { "type": "string" },
+          "timestamp": { "type": "string" }
         },
-        "required": ["operation_id", "decision", "reason"]
+        "required": ["operation_id", "decision", "reason", "approver_id", "timestamp"]
+      }
+    },
+    {
+      "name": "log_execution",
+      "description": "Append a completed execution record to the audit log.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "operation_id": { "type": "string" },
+          "execution_success": { "type": "boolean" },
+          "actual_rows": { "type": "integer" },
+          "blast_radius_delta": { "type": "number" },
+          "timestamp": { "type": "string" }
+        },
+        "required": ["operation_id", "execution_success", "timestamp"]
+      }
+    },
+    {
+      "name": "log_auto_reject",
+      "description": "Append an auto-rejection record citing the specific policy rule.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "operation_id": { "type": "string" },
+          "rule_name": { "type": "string" },
+          "matched_pattern": { "type": "string" },
+          "timestamp": { "type": "string" }
+        },
+        "required": ["operation_id", "rule_name", "matched_pattern", "timestamp"]
       }
     },
     {
@@ -64,9 +98,9 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "operation_id": { "type": "string" }
+          "record_id": { "type": "string" }
         },
-        "required": ["operation_id"]
+        "required": ["record_id"]
       }
     }
   ]

@@ -92,6 +92,32 @@ class TestRunIntake:
         assert contract.workflow_provenance[0].agent == "INTAKE"
         assert contract.workflow_provenance[0].llm_involved is False
 
+    def test_existing_operation_id_is_preserved(self):
+        """
+        Regression: proxy calls run_intake once, injects operation_id into manifest_dict,
+        then LangGraph INTAKE node calls run_intake again on the same dict.
+        The second call must reuse the same operation_id — not generate a new one —
+        so that HUMAN_REVIEW and EXECUTION can find the workflow_store record.
+        """
+        manifest = self._manifest()
+        manifest["operation_id"] = "cg_abcd1234"
+        contract = run_intake(manifest)
+        assert contract.operation_id == "cg_abcd1234"
+
+    def test_two_calls_same_operation_id_when_injected(self):
+        """
+        Two successive calls to run_intake on the same manifest (with operation_id injected)
+        must both return the same operation_id. This is the exact execution path in the
+        proxy full-pipeline handler after the double-ID fix.
+        """
+        manifest = self._manifest()
+        # Simulate proxy: first call generates and injects operation_id
+        c1 = run_intake(manifest)
+        manifest["operation_id"] = c1.operation_id
+        # Simulate LangGraph INTAKE node: second call on same manifest
+        c2 = run_intake(manifest)
+        assert c1.operation_id == c2.operation_id
+
     def test_missing_sql_raises(self):
         with pytest.raises((ValueError, KeyError, Exception)):
             run_intake({"submitted_by": "test", "source_type": "internal_system"})

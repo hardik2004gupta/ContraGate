@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -64,7 +64,7 @@ async def health() -> dict:
         "status": "ok",
         "service": "contragate-orchestrator",
         "version": "0.2.0",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
     }
 
 

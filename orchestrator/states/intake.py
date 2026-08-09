@@ -17,7 +17,7 @@ import logging
 import os
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from orchestrator.handoff_schema import (
@@ -97,14 +97,18 @@ def run_intake(manifest: dict[str, Any]) -> HandoffContract:
         SourceType.EXTERNAL_USER_INPUT, SourceType.EXTERNAL_AGENT
     )
 
-    operation_id = _generate_operation_id()
+    # Reuse an existing operation_id if the proxy already assigned one;
+    # otherwise generate a fresh one. This prevents double-ID divergence when
+    # the proxy calls run_intake to seed the workflow_store and the LangGraph
+    # INTAKE node calls run_intake again with the same manifest_dict.
+    operation_id = manifest.get("operation_id") or _generate_operation_id()
 
     contract = HandoffContract(
         operation_id=operation_id,
         tenant_id=tenant_id,
         submitted_by=submitted_by,
         source_type=source_type,
-        submission_timestamp=datetime.utcnow(),
+        submission_timestamp=datetime.now(timezone.utc),
         raw_sql=raw_sql,
         raw_intent=manifest.get("intent"),
         operation_type=operation_type,

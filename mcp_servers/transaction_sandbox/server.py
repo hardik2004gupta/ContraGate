@@ -31,6 +31,7 @@ from typing import Any
 
 import psycopg2
 import psycopg2.extras
+from psycopg2 import sql as pgsql
 
 from mcp_servers.base.server_base import ContraGateMCPServer
 
@@ -43,20 +44,22 @@ STATEMENT_TIMEOUT_MS = int(os.environ.get("SANDBOX_STATEMENT_TIMEOUT", "5000"))
 _sessions: dict[str, psycopg2.extensions.connection] = {}
 
 server = ContraGateMCPServer("transaction-sandbox", port=PORT)
+app = server.app  # uvicorn entry point
 
 
 def _get_staging_conn() -> psycopg2.extensions.connection:
     """Open a NEW connection to the staging database. Never the production DB."""
-    if not STAGING_DATABASE_URL:
+    url = os.environ.get("STAGING_DATABASE_URL", "")
+    if not url:
         raise RuntimeError(
             "STAGING_DATABASE_URL is not set. "
             "The transaction sandbox requires a writable staging instance."
         )
-    return psycopg2.connect(STAGING_DATABASE_URL)
+    return psycopg2.connect(url)
 
 
 @server.tool("begin_sandbox")
-def begin_sandbox(operation_id: str) -> dict:
+def begin_sandbox(tenant_id: str) -> dict:
     """
     Open an explicit transaction on the staging database and set sandbox mode.
 
@@ -110,11 +113,11 @@ def execute_in_sandbox(session_id: str, sql: str) -> dict:
 
 
 @server.tool("capture_diff")
-def capture_diff(session_id: str, tables: list[str]) -> dict:
+def capture_diff(session_id: str, tables: list[str], phase: str = "pre") -> dict:
     """
     Capture row counts before and after for each affected table.
 
-    Called twice: once before execute_in_sandbox and once after.
+    Called twice: once before execute_in_sandbox (phase='pre') and once after (phase='post').
     The caller (context_sim agent) computes the delta between the two calls.
     """
     conn = _sessions.get(session_id)
@@ -124,15 +127,22 @@ def capture_diff(session_id: str, tables: list[str]) -> dict:
     counts = {}
     with conn.cursor() as cur:
         for table in tables:
-            # Use the staging schema prefix if the table has no schema qualifier
-            qualified = (
-                table if "." in table else f"contragate_staging.{table}"
-            )
+            # Split schema.table or default to contragate_staging schema.
+            # Use psycopg2.sql.Identifier to prevent SQL injection from table names.
+            if "." in table:
+                schema, tbl = table.split(".", 1)
+                qualified = pgsql.SQL("SELECT COUNT(*) FROM {}.{}").format(
+                    pgsql.Identifier(schema), pgsql.Identifier(tbl)
+                )
+            else:
+                qualified = pgsql.SQL("SELECT COUNT(*) FROM {}.{}").format(
+                    pgsql.Identifier("contragate_staging"), pgsql.Identifier(table)
+                )
             try:
-                cur.execute(f"SELECT COUNT(*) FROM {qualified}")
+                cur.execute(qualified)
                 row = cur.fetchone()
                 counts[table] = row[0] if row else 0
-            except Exception as exc:
+            except Exception:
                 counts[table] = -1  # Indicate error for this table
 
     return {"table_counts": counts}

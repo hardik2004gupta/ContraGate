@@ -40,64 +40,14 @@ logger = logging.getLogger(__name__)
 async def run_context_sim(contract: HandoffContract) -> HandoffContract:
     """
     Execute three-stage retrieval and transaction sandbox simulation in parallel.
-    Both tasks are independent — failures in one do not affect the other.
+
+    Delegates to ContextSimAgent which runs retrieval_client and sandbox_client
+    concurrently. Both branches are independent — failure in one does not affect
+    the other (CLAUDE.md §10).
     """
-    start = datetime.utcnow()
-
-    # Run retrieval and simulation concurrently
-    retrieval_task = asyncio.create_task(_run_retrieval(contract))
-    simulation_task = asyncio.create_task(_run_simulation(contract))
-
-    retrieval_result, simulation_result = await asyncio.gather(
-        retrieval_task, simulation_task, return_exceptions=True
-    )
-
-    # Apply retrieval results
-    if isinstance(retrieval_result, Exception):
-        logger.warning(
-            "Retrieval failed: %s — continuing without historical context",
-            retrieval_result,
-        )
-        contract.retrieval_available = False
-        contract.historical_precedents = []
-    else:
-        contract.retrieval_available = True
-        contract.historical_precedents = retrieval_result
-
-    # Apply simulation results
-    if isinstance(simulation_result, Exception):
-        logger.warning(
-            "Simulation failed after retries: %s — continuing without simulation",
-            simulation_result,
-        )
-        contract.simulation_available = False
-        contract.simulation_executed = False
-    else:
-        _apply_simulation_result(contract, simulation_result)
-
-    elapsed_ms = (datetime.utcnow() - start).total_seconds() * 1000
-    contract.add_provenance(
-        agent="CONTEXT_SIM_STUB",
-        field_written=(
-            "retrieval_available,historical_precedents,simulation_available,"
-            "simulation_executed,actual_primary_rows,actual_cascade,sandbox_trigger_log,"
-            "simulation_timeout"
-        ),
-        llm_involved=False,
-    )
-
-    logger.info(
-        "CONTEXT_AND_SIM complete",
-        extra={
-            "operation_id": contract.operation_id,
-            "retrieval_available": contract.retrieval_available,
-            "historical_count": len(contract.historical_precedents),
-            "simulation_available": contract.simulation_available,
-            "simulation_executed": contract.simulation_executed,
-            "elapsed_ms": round(elapsed_ms, 1),
-        },
-    )
-    return contract
+    from agents.context_sim.agent import ContextSimAgent
+    agent = ContextSimAgent(contract.operation_id, contract.tenant_id)
+    return await agent.run(contract)
 
 
 # ── Three-Stage Retrieval ─────────────────────────────────────────────────────
@@ -145,7 +95,7 @@ async def _run_retrieval(contract: HandoffContract) -> list[HistoricalOperation]
             "top_k": 3,
         },
     )
-    ranked = stage3.get("ranked", [])
+    ranked = stage3.get("top3", [])
     return [_to_historical_operation(r) for r in ranked]
 
 
@@ -216,7 +166,7 @@ async def _run_simulation_attempt(contract: HandoffContract) -> dict:
         )
 
         # 5. Read trigger log
-        trigger_log = await mcp_client.transaction_sandbox(
+        trigger_log_resp = await mcp_client.transaction_sandbox(
             "get_trigger_log",
             {"session_id": session_id},
             timeout=5.0,
@@ -224,9 +174,9 @@ async def _run_simulation_attempt(contract: HandoffContract) -> dict:
 
         return {
             "session_id": session_id,
-            "pre": pre_diff.get("counts", {}),
-            "post": post_diff.get("counts", {}),
-            "trigger_log": trigger_log.get("entries", []),
+            "pre": pre_diff.get("table_counts", {}),
+            "post": post_diff.get("table_counts", {}),
+            "trigger_log": trigger_log_resp.get("trigger_log", []),
         }
 
     finally:

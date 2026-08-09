@@ -21,7 +21,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from orchestrator import mcp_client
 from orchestrator.handoff_schema import (
@@ -45,7 +45,7 @@ async def run_human_review(contract: HandoffContract) -> HandoffContract:
     Notify the approver and wait for a human decision.
     Returns contract with approval_state set by the human (or TIMED_OUT).
     """
-    start = datetime.utcnow()
+    start = datetime.now(timezone.utc)
     op_id = contract.operation_id
 
     # ── Send approval request to notifier ───────────────────────────────────
@@ -84,14 +84,32 @@ async def run_human_review(contract: HandoffContract) -> HandoffContract:
         llm_involved=False,
     )
 
+    # ── Persist the fully-analyzed contract and set status ───────────────────
+    # By this point all three agents have written their results to `contract`.
+    # Persist now so the UI can display the populated contract while we wait,
+    # and set the workflow status to PENDING_HUMAN_APPROVAL so list_pending()
+    # returns this record in the approval queue.
+    from orchestrator.workflow_store import WorkflowStatus, workflow_store
+
+    await workflow_store.update_contract(op_id, contract)
+    await workflow_store.update_status(op_id, WorkflowStatus.PENDING_HUMAN_APPROVAL)
+
     # ── Poll for human decision ──────────────────────────────────────────────
     # The workflow store is updated by the proxy when the notifier posts a callback.
     # We poll it here at POLL_INTERVAL_SECONDS until a decision arrives or timeout.
-    from orchestrator.workflow_store import workflow_store
+
+    # Reset approval_state to PENDING when re-entering HUMAN_REVIEW after MODIFY.
+    # Without this the poll loop immediately finds approval_state=MODIFIED, breaks,
+    # and routes back to analysis — creating an infinite loop. Persisting the reset
+    # also allows record_decision() to accept the new approval decision.
+    if contract.approval_state == ApprovalState.MODIFIED:
+        contract.approval_state = ApprovalState.PENDING
+        await workflow_store.update_contract(op_id, contract)
+        await workflow_store.update_status(op_id, WorkflowStatus.PENDING_HUMAN_APPROVAL)
 
     deadline = start.timestamp() + REVIEW_TIMEOUT_SECONDS
 
-    while datetime.utcnow().timestamp() < deadline:
+    while datetime.now(timezone.utc).timestamp() < deadline:
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
 
         record = await workflow_store.get(op_id)
@@ -117,9 +135,9 @@ async def run_human_review(contract: HandoffContract) -> HandoffContract:
         )
         contract.approval_state = ApprovalState.TIMED_OUT
         contract.decision_reason = "Human review timed out — auto-rejected by ContraGate."
-        contract.decision_timestamp = datetime.utcnow()
+        contract.decision_timestamp = datetime.now(timezone.utc)
 
-    elapsed_min = (datetime.utcnow() - start).total_seconds() / 60.0
+    elapsed_min = (datetime.now(timezone.utc) - start).total_seconds() / 60.0
     contract.add_provenance(
         agent="HUMAN_REVIEW",
         field_written="approval_state,human_decision,decision_reason,decision_timestamp",

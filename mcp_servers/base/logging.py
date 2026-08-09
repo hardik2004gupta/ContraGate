@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 
@@ -26,7 +26,7 @@ class StructuredLogger:
 
     def _emit(self, level: str, event: str, **fields: Any) -> None:
         record = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "level": level,
             "server": self.server_name,
             "event": event,

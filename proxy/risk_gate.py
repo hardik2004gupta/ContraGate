@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -84,7 +85,18 @@ async def quick_check(
     ))
 
     try:
-        explain_sql = f"EXPLAIN (FORMAT JSON) {sql.strip().rstrip(';')}"
+        # Safety: strip trailing semicolons, then reject any SQL that still contains
+        # embedded semicolons — this blocks multi-statement injection attempts.
+        # PostgreSQL would reject them anyway (EXPLAIN takes one statement), but
+        # defense-in-depth means we never send the request at all.
+        _clean_sql = sql.strip().rstrip(';').strip()
+        if ';' in _clean_sql:
+            logger.warning(
+                "EXPLAIN safety: SQL contains embedded semicolons — skipping EXPLAIN, "
+                "using conservative cost estimate"
+            )
+            raise ValueError("multi-statement SQL rejected at proxy EXPLAIN safety check")
+        explain_sql = f"EXPLAIN (FORMAT JSON) {_clean_sql}"
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(
                 f"{POSTGRES_READER_URL}/call",
@@ -118,7 +130,7 @@ async def quick_check(
                         "estimated_rows": explain_rows,
                         "source_type": source_type,
                         "has_external_triggers": False,
-                        "submission_hour": __import__("datetime").datetime.utcnow().hour,
+                        "submission_hour": datetime.now(timezone.utc).hour,
                         "tenant_id": tenant_id,
                         "explain_cost": explain_cost,
                     },

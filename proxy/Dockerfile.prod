@@ -1,0 +1,36 @@
+# ContraGate Production Dockerfile — combined proxy + orchestrator
+# Deployed on Railway as contragate-proxy-orchestrator.
+# This image runs both the MCP proxy (port 8000) and the LangGraph orchestrator.
+# The proxy imports the orchestrator directly — no HTTP hop between them.
+#
+# Difference from proxy/Dockerfile (local dev):
+#   - Installs production dependencies only (no pytest, no dev tools)
+#   - Sets DEV_MODE=false as a build-time default (overridable at runtime)
+#   - Healthcheck baked in
+#   - Uses Railway environment variables: DATABASE_URL, STAGING_DATABASE_URL,
+#     ANTHROPIC_API_KEY, SLACK_BOT_TOKEN, SLACK_APPROVAL_CHANNEL
+
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl libpq-dev gcc && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 8000
+
+# Production defaults — override with Railway env vars
+ENV DEV_MODE=false
+ENV USE_MOCK_NOTIFIER=false
+ENV USE_MOCK_AUTH=false
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
+  CMD curl -sf http://localhost:8000/health || exit 1
+
+CMD ["python", "-m", "uvicorn", "proxy.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

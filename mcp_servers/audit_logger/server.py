@@ -23,7 +23,6 @@ No mutable audit history from normal application code paths.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import uuid
@@ -32,6 +31,7 @@ from datetime import datetime
 import psycopg2
 import psycopg2.extras
 
+from mcp_servers.audit_logger.checksum import compute_checksum
 from mcp_servers.base.server_base import ContraGateMCPServer
 
 
@@ -39,6 +39,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "")
 PORT = int(os.environ.get("AUDIT_LOGGER_PORT", "8013"))
 
 server = ContraGateMCPServer("audit-logger", port=PORT)
+app = server.app  # uvicorn entry point
 
 
 def _get_conn() -> psycopg2.extensions.connection:
@@ -46,8 +47,7 @@ def _get_conn() -> psycopg2.extensions.connection:
 
 
 def _checksum(data: dict) -> str:
-    canonical = json.dumps(data, sort_keys=True, default=str)
-    return hashlib.sha256(canonical.encode()).hexdigest()
+    return compute_checksum(data)
 
 
 def _ensure_audit_table(conn: psycopg2.extensions.connection) -> None:

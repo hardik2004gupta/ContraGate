@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -40,6 +40,7 @@ SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
 SLACK_APPROVAL_CHANNEL = os.environ.get("SLACK_APPROVAL_CHANNEL", "#contragate-approvals")
 
 server = ContraGateMCPServer("notifier", port=PORT)
+app = server.app  # uvicorn entry point
 
 # In-memory pending approvals (maps approval_id -> contract summary)
 _pending: dict[str, dict] = {}
@@ -73,7 +74,7 @@ def send_approval_request(
         "historical_rejection_count": historical_rejection_count,
         "ui_url": ui_url,
         "poll_url": poll_url,
-        "received_at": datetime.utcnow().isoformat() + "Z",
+        "received_at": datetime.now(timezone.utc).isoformat() + "Z",
     }
     _pending[approval_id] = contract_info
 
@@ -112,6 +113,7 @@ def _send_slack_approval(info: dict) -> dict:
     if not SLACK_BOT_TOKEN:
         raise RuntimeError("SLACK_BOT_TOKEN not set for production notifier")
 
+    approval_id = info["approval_id"]
     message = {
         "channel": SLACK_APPROVAL_CHANNEL,
         "text": f"ContraGate Review Required — {info['risk_tier']}",
@@ -137,7 +139,22 @@ def _send_slack_approval(info: dict) -> dict:
                     {
                         "type": "button",
                         "text": {"type": "plain_text", "text": "View Full Contract"},
+                        "action_id": "view_contract",
                         "url": info["ui_url"],
+                    },
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Approve"},
+                        "action_id": f"open_approve_modal_{approval_id}",
+                        "style": "primary",
+                        "value": approval_id,
+                    },
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Reject"},
+                        "action_id": f"open_reject_modal_{approval_id}",
+                        "style": "danger",
+                        "value": approval_id,
                     },
                 ],
             },
@@ -177,7 +194,7 @@ def record_decision(
         "approval_id": approval_id,
         "decision": decision,
         "reason": reason,
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
     }
     try:
         httpx.post(PROXY_CALLBACK_URL, json=payload, timeout=10.0)

@@ -30,6 +30,7 @@ import asyncio
 import json
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -60,6 +61,83 @@ def build_pending_response(approval_id: str) -> dict[str, Any]:
         "estimated_review_seconds": 300,
         "contragate_version": "0.2.0",
     }
+
+
+@router.get("/approvals")
+async def list_pending_approvals() -> JSONResponse:
+    """List all approvals currently awaiting human review (for UI approval queue)."""
+    records = await workflow_store.list_pending()
+    items = []
+    for r in records:
+        c = r.contract
+        age_seconds = (datetime.now(timezone.utc) - r.created_at).total_seconds()
+        items.append({
+            "approval_id": r.approval_id,
+            "operation_id": r.operation_id,
+            "status": r.status.value,
+            "risk_tier": c.risk_tier.value if c.risk_tier else "UNKNOWN",
+            "primary_table": c.primary_table or "",
+            "estimated_rows": c.estimated_primary_rows,
+            "reversibility": c.reversibility.value if c.reversibility else "UNKNOWN",
+            "intent_summary": c.intent_summary or c.raw_sql[:120],
+            "operation_type": c.operation_type.value if c.operation_type else "UNKNOWN",
+            "age_seconds": int(age_seconds),
+            "timeout_at_seconds": REVIEW_TIMEOUT_SECONDS,
+            "seconds_remaining": max(0, int(REVIEW_TIMEOUT_SECONDS - age_seconds)),
+            "historical_rejection_count": sum(
+                1 for h in c.historical_precedents if h.outcome in ("REJECTED", "ROLLED_BACK")
+            ),
+            "prompt_injection_risk": c.prompt_injection_risk,
+            "created_at": r.created_at.isoformat().replace('+00:00', 'Z'),
+        })
+    return JSONResponse(content={"approvals": items})
+
+
+@router.get("/approvals/{approval_id}/contract")
+async def get_full_contract(approval_id: str) -> JSONResponse:
+    """Get the full HandoffContract for the contract view UI."""
+    record = await workflow_store.get(approval_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Approval {approval_id!r} not found")
+    import json as _json
+    return JSONResponse(content={
+        "status": record.status.value,
+        "approval_id": record.approval_id,
+        "contract": _json.loads(record.contract.model_dump_json()),
+    })
+
+
+@router.get("/audit")
+async def list_audit_records(limit: int = 100) -> JSONResponse:
+    """List all workflow records for the audit log UI, newest first."""
+    records = await workflow_store.list_all(limit=limit)
+    items = []
+    for r in records:
+        c = r.contract
+        from orchestrator.states.audit import _determine_outcome
+        try:
+            outcome = _determine_outcome(c)
+        except Exception:
+            outcome = r.status.value
+        items.append({
+            "operation_id": r.operation_id,
+            "status": r.status.value,
+            "outcome": outcome,
+            "risk_tier": c.risk_tier.value if c.risk_tier else "UNKNOWN",
+            "primary_table": c.primary_table or "",
+            "operation_type": c.operation_type.value if c.operation_type else "UNKNOWN",
+            "estimated_rows": c.estimated_primary_rows,
+            "actual_rows": c.actual_primary_rows,
+            "blast_radius_delta": c.blast_radius_accuracy_delta,
+            "intent_summary": c.intent_summary or c.raw_sql[:120],
+            "decision": c.human_decision,
+            "decision_reason": c.decision_reason,
+            "reversibility": c.reversibility.value if c.reversibility else None,
+            "execution_success": c.execution_success,
+            "created_at": r.created_at.isoformat().replace('+00:00', 'Z'),
+            "updated_at": r.updated_at.isoformat().replace('+00:00', 'Z'),
+        })
+    return JSONResponse(content={"records": items})
 
 
 @router.get("/approvals/{approval_id}/status")
